@@ -1010,10 +1010,10 @@ END:VCALENDAR`;
     rsvpStatus: rsvpStatus,
     userId: currentUser.value.id,
     createdAt: new Date().toISOString()
-  };
+  }
   
 
-    };
+    
     
     // Remove duplicate if exists
     const filtered = reminders.filter(r => r.eventId !== event.id);
@@ -1021,8 +1021,8 @@ END:VCALENDAR`;
     localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
     
     showToast('Event added to your calendar reminders!', 'success');
-  
 
+  };
 
 const handleLogout = () => {
   localStorage.removeItem('smartband_user'); 
