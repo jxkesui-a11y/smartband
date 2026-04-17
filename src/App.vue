@@ -25,6 +25,8 @@
             <div v-if="isMessagesExpanded" class="flex flex-col gap-1 ml-9 mt-1 overflow-hidden transition-all duration-300">
               <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold transition-all text-left uppercase tracking-widest relative" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500 hover:text-gray-300'">
                 <i :class="ch.icon" class="opacity-50 text-[10px]"></i><span>{{ ch.name }}</span>
+                <i v-if="ch.id === 'important' && unreadMessages[ch.id] > 0" class="fa-solid fa-exclamation text-[#FF453A] ml-auto text-xs animate-pulse"></i>
+                <span v-else-if="unreadMessages[ch.id] > 0" class="ml-auto w-4 h-4 bg-[#FF453A] text-white text-[8px] font-bold rounded-full flex items-center justify-center">{{ unreadMessages[ch.id] }}</span>
               </button>
             </div>
           </div>
@@ -46,6 +48,8 @@
             <div v-if="isMessagesExpanded" class="flex flex-col gap-1 ml-9 mt-1">
               <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold text-left uppercase tracking-widest relative" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500'">
                 <i :class="ch.icon" class="opacity-50 text-[10px]"></i><span>{{ ch.name }}</span>
+                <i v-if="ch.id === 'important' && unreadMessages[ch.id] > 0" class="fa-solid fa-exclamation text-[#FF453A] ml-auto text-xs animate-pulse"></i>
+                <span v-else-if="unreadMessages[ch.id] > 0" class="ml-auto w-4 h-4 bg-[#FF453A] text-white text-[8px] font-bold rounded-full flex items-center justify-center">{{ unreadMessages[ch.id] }}</span>
               </button>
             </div>
           </div>
