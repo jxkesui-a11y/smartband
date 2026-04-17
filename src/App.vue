@@ -308,10 +308,11 @@
       <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 max-h-[90vh] overflow-y-auto">
         <h3 class="text-xl font-bold mb-4">New Event</h3>
         <input v-model="eventForm.title" maxlength="100" placeholder="Event Name" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
-        <input type="date" v-model="eventForm.date" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
+        <input type="date" v-model="eventForm.date" :min="getTodayDateString()" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]" @change="validateEventDate">
+        <p v-if="eventForm.date && new Date(eventForm.date) < new Date(getTodayDateString())" class="text-[#FF453A] text-[10px] mb-2">❌ Cannot schedule events in the past</p>
         <input v-model="eventForm.time" maxlength="50" placeholder="Time (e.g. 6:00 AM)" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
         <input v-model="eventForm.location" maxlength="150" placeholder="Location" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-6 text-sm text-white outline-none focus:border-[#F5C518]">
-        <div class="flex gap-3 md:gap-4"><button @click="showAddEventModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitEvent" :disabled="isSubmitting" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Add</button></div>
+        <div class="flex gap-3 md:gap-4"><button @click="showAddEventModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitEvent" :disabled="isSubmitting || !eventForm.date || new Date(eventForm.date) < new Date(getTodayDateString())" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Add</button></div>
       </div>
     </div>
 
@@ -543,9 +544,16 @@ const submitRSVP = async (eventId, status, eventObj = null) => {
     if (!error) {
       showToast('RSVP updated!');
       
-      // Add to calendar if user marked as "going" and event object provided
-      if (status === 'going' && eventObj && calendarPermissionStatus.value === 'granted') {
-        addEventToCalendar(eventObj, status);
+      // Add to calendar if user marked as "going"
+      if (status === 'going' && eventObj) {
+        if (calendarPermissionStatus.value === 'granted') {
+          // Permission already granted - add to calendar
+          addEventToCalendar(eventObj, status);
+        } else if (calendarPermissionStatus.value === 'default') {
+          // Permission not requested - show modal
+          showCalendarPermissionModal.value = true;
+        }
+        // If denied, silently skip
       }
       
       await loadDashboard();
@@ -976,6 +984,19 @@ const isOnline = (lastSeen) => { if(!lastSeen) return false; return (new Date() 
 const formatMonth = (d) => new Date(d).toLocaleString('default', { month: 'short' });
 const formatDay = (d) => new Date(d).getDate();
 const formatDate = (d) => new Date(d).toLocaleDateString();
+const getTodayDateString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const validateEventDate = () => {
+  if (eventForm.value.date && new Date(eventForm.value.date) < new Date(getTodayDateString())) {
+    showToast('Cannot schedule events in the past', 'error');
+    eventForm.value.date = '';
+  }
+};
 const scrollToBottom = () => nextTick(() => { const b = document.getElementById('chatBox'); if(b) b.scrollTop = b.scrollHeight; });
 const toggleProfile = () => { showProfileMenu.value = !showProfileMenu.value; };
 const closeMenus = () => { showProfileMenu.value = false; showMobileMenu.value = false; };
