@@ -377,8 +377,8 @@ const showNotificationPermissionModal = ref(false);
 const notificationPermissionDenied = ref(false);
 const showCalendarPermissionModal = ref(false);
 const notificationPermissionStatus = ref(Notification?.permission || 'default'); // 'default', 'granted', 'denied'
-const calendarPermissionStatus = ref('default'); // 'default', 'granted', 'denied'
-const userPermissionsHandled = ref(false); // Flag to track if we've asked this session
+const calendarPermissionStatus = ref(localStorage.getItem('smartband_calendar_permission') || 'default'); // 'default', 'granted', 'denied'
+const userPermissionsHandled = ref(localStorage.getItem('smartband_permissions_session') === 'true'); // Persist across sessions
 const dndExempted = ref(false);
 
 // Toasts and Loading states
@@ -840,9 +840,11 @@ const handleLoginSuccess = (userData) => {
   sendHeartbeat();
   setupRealtime();
   
-  // Request permissions on login (one time per session)
+  // Check if permissions have been handled in this browser (persistent across sessions)
   if (!userPermissionsHandled.value) {
     userPermissionsHandled.value = true;
+    localStorage.setItem('smartband_permissions_session', 'true');
+    
     setTimeout(() => {
       // Check current notification permission status
       const currentStatus = Notification?.permission || 'default';
@@ -855,8 +857,11 @@ const handleLoginSuccess = (userData) => {
         // Permission was previously denied
         notificationPermissionDenied.value = true;
       } else if (currentStatus === 'granted') {
-        // Permission already granted - show calendar modal
-        setTimeout(() => showCalendarPermissionModal.value = true, 300);
+        // Permission already granted - check calendar permission
+        const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
+        if (calendarStatus === 'default') {
+          setTimeout(() => showCalendarPermissionModal.value = true, 300);
+        }
       }
     }, 500);
   }
@@ -892,17 +897,21 @@ const askCalendarPermission = async () => {
   // Browser calendar permission is limited - we can use the Calendar API if available
   // For now, we'll just acknowledge and set up local calendar integration
   calendarPermissionStatus.value = 'granted';
+  localStorage.setItem('smartband_calendar_permission', 'granted');
   showToast('📅 Calendar integration ready! Event reminders will sync.', 'success');
   showCalendarPermissionModal.value = false;
 };
 
 const skipCalendarPermission = () => {
-  calendarPermissionStatus.value = 'default';
+  calendarPermissionStatus.value = 'denied';
+  localStorage.setItem('smartband_calendar_permission', 'denied');
   showCalendarPermissionModal.value = false;
 };
 
 const skipNotificationPermission = () => {
   showNotificationPermissionModal.value = false;
+  localStorage.setItem('smartband_permissions_session', 'true');
+  userPermissionsHandled.value = true;
   showToast('⏭️ You can enable notifications anytime in settings.', 'success');
 };
 
@@ -914,18 +923,42 @@ const addEventToCalendar = (event, rsvpStatus) => {
     return;
   }
 
+  // Parse time - handle both "HH:MM" and "HH:MM AM/PM" formats
+  let timeStr = event.time_str.trim();
+  let hour = 0, minute = 0;
+  
+  if (timeStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
+    // Time with AM/PM
+    const parts = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    hour = parseInt(parts[1]);
+    minute = parseInt(parts[2]);
+    const period = parts[3].toUpperCase();
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+  } else if (timeStr.match(/^\d{1,2}:\d{2}$/)) {
+    // Time in HH:MM format
+    const parts = timeStr.split(':');
+    hour = parseInt(parts[0]);
+    minute = parseInt(parts[1]);
+  }
+  
+  const hourStr = String(hour).padStart(2, '0');
+  const minuteStr = String(minute).padStart(2, '0');
+  
   // Format: YYYY-MM-DDTHH:MM:SS
-  const dateTime = `${event.event_date}T${event.time_str}:00`;
+  const dateTime = `${event.event_date}T${hourStr}:${minuteStr}:00`;
+  const dateTimeFormatted = dateTime.replace(/-/g, '').replace(/:/g, '');
   
   // Create iCal format event
   const icalContent = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//SmartBand//Event Calendar//EN
 CALSCALE:GREGORIAN
+METHOD:PUBLISH
 BEGIN:VEVENT
 UID:smartband-event-${event.id}-${currentUser.value.id}@smartband.local
+DTSTART:${dateTimeFormatted}
 DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
-DTSTART:${dateTime.replace(/-/g, '').replace(/:/g, '')}
 SUMMARY:${event.title} ${rsvpStatus === 'going' ? '(Attending)' : '(Not Going)'}
 LOCATION:${event.location || 'TBA'}
 DESCRIPTION:SmartBand Event - You marked yourself as ${rsvpStatus === 'going' ? 'GOING' : 'NOT GOING'}
@@ -934,35 +967,56 @@ SEQUENCE:0
 END:VEVENT
 END:VCALENDAR`;
 
-  // Try to add to system calendar
-  if (calendarPermissionStatus.value === 'granted' && 'calendar' in navigator) {
-    try {
-      // This is a proposed API - fallback to download method
-      const blob = new Blob([icalContent], { type: 'text/calendar' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `smartband-event-${event.id}.ics`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      showToast(`Event added to calendar! Download started.`, 'success');
-    } catch (err) {
-      console.error('Calendar integration error:', err);
-    }
-  } else {
-    // Fallback: store in localStorage as reminder
-    const reminders = JSON.parse(localStorage.getItem('smartband_reminders') || '[]');
-    const reminder = {
-      id: event.id,
-      eventId: event.id,
-      title: event.title,
-      date: event.event_date,
-      time: event.time_str,
-      location: event.location,
-      rsvpStatus: rsvpStatus,
-      userId: currentUser.value.id,
-      createdAt: new Date().toISOString()
+  // Method 1: Download .ics file (works on all devices - Windows, Mac, iOS, Android)
+  try {
+    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `smartband-${event.title.replace(/\s+/g, '-')}-${event.id}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('✅ Calendar event downloaded! Open it to add to your device calendar.', 'success');
+  } catch (err) {
+    console.error('Calendar download error:', err);
+    showToast('Could not download calendar file', 'error');
+  }
+
+  // Method 2: Generate Google Calendar URL (optional - user can click to open)
+  try {
+    const eventTitle = encodeURIComponent(`${event.title} (${rsvpStatus === 'going' ? 'Going' : 'Not Going'})`);
+    const eventDetails = encodeURIComponent(`SmartBand Event - ${event.location || 'TBA'}`);
+    const startDateTime = dateTime.replace(/-/g, '').replace(/:/g, '');
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&details=${eventDetails}&location=${encodeURIComponent(event.location || '')}&dates=${startDateTime}/${startDateTime}`;
+    
+    // Store the URL for reference (could be used in a separate button)
+    window.smartbandGoogleCalendarUrl = googleCalendarUrl;
+  } catch (err) {
+    console.error('Google Calendar URL error:', err);
+  }
+
+  // Method 3: Store in localStorage as backup reminder
+  const reminders = JSON.parse(localStorage.getItem('smartband_reminders') || '[]');
+  const reminder = {
+    id: event.id,
+    eventId: event.id,
+    title: event.title,
+    date: event.event_date,
+    time: event.time_str,
+    location: event.location,
+    rsvpStatus: rsvpStatus,
+    userId: currentUser.value.id,
+    createdAt: new Date().toISOString()
+  };
+  
+  // Remove duplicate if exists
+  const filtered = reminders.filter(r => r.eventId !== event.id);
+  filtered.push(reminder);
+  localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
+};
     };
     
     // Remove duplicate if exists
@@ -1068,16 +1122,20 @@ onMounted(() => {
     // If user is already logged in (page refresh), still handle permissions if not done this session
     if (!userPermissionsHandled.value) {
       userPermissionsHandled.value = true;
+      localStorage.setItem('smartband_permissions_session', 'true');
       setTimeout(() => {
         const currentStatus = Notification?.permission || 'default';
         notificationPermissionStatus.value = currentStatus;
         
-        if (currentStatus === 'default') {
-          showNotificationPermissionModal.value = true;
+        if (currentStatus === 'default') {\n          showNotificationPermissionModal.value = true;
         } else if (currentStatus === 'denied') {
           notificationPermissionDenied.value = true;
         } else if (currentStatus === 'granted') {
-          setTimeout(() => showCalendarPermissionModal.value = true, 300);
+          // Check if calendar permission was already asked
+          const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
+          if (calendarStatus === 'default') {
+            setTimeout(() => showCalendarPermissionModal.value = true, 300);
+          }
         }
       }, 500);
     }
