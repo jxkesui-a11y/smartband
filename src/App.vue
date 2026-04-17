@@ -133,9 +133,39 @@
                       <i class="fa-solid fa-thumbs-down mr-1"></i> Can't Make It
                     </button>
                   </div>
-                  <div v-if="canManageDashboard" class="flex justify-between text-[10px] text-gray-500 uppercase font-bold px-1">
-                    <span class="text-[#32D74B]">{{ getRSVPStats(event.id).going }} Going</span>
-                    <span class="text-[#FF453A]">{{ getRSVPStats(event.id).notGoing }} Not Going</span>
+                  <div class="flex justify-between text-[10px] text-gray-500 uppercase font-bold px-1">
+                    <span class="text-[#32D74B] cursor-pointer hover:text-white transition-colors" @click="toggleAttendeesList(event.id)">
+                      <i :class="expandedEventId === event.id ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" class="mr-1"></i>
+                      {{ getRSVPStats(event.id).going }} Going
+                    </span>
+                    <span class="text-[#FF453A] cursor-pointer hover:text-white transition-colors" @click="toggleAttendeesList(event.id)">
+                      {{ getRSVPStats(event.id).notGoing }} Not Going
+                      <i :class="expandedEventId === event.id ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" class="ml-1"></i>
+                    </span>
+                  </div>
+
+                  <div v-if="expandedEventId === event.id" class="mt-3 pt-3 border-t border-white/10 flex flex-col gap-4 animate-in slide-in-from-top-2">
+                    <div v-if="getAttendeesList(event.id).goingList.length > 0" class="flex flex-col gap-2">
+                      <p class="text-[10px] font-bold uppercase text-[#32D74B] tracking-widest">Going ({{ getAttendeesList(event.id).goingList.length }})</p>
+                      <div class="flex flex-wrap gap-2">
+                        <span v-for="(attendee, idx) in getAttendeesList(event.id).goingList" :key="'going-' + idx" class="bg-[#32D74B]/10 text-[#32D74B] px-3 py-1.5 rounded-lg text-[9px] font-bold border border-[#32D74B]/20">
+                          {{ attendee }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div v-if="getAttendeesList(event.id).notGoingList.length > 0" class="flex flex-col gap-2">
+                      <p class="text-[10px] font-bold uppercase text-[#FF453A] tracking-widest">Can't Make It ({{ getAttendeesList(event.id).notGoingList.length }})</p>
+                      <div class="flex flex-wrap gap-2">
+                        <span v-for="(attendee, idx) in getAttendeesList(event.id).notGoingList" :key="'notgoing-' + idx" class="bg-[#FF453A]/10 text-[#FF453A] px-3 py-1.5 rounded-lg text-[9px] font-bold border border-[#FF453A]/20">
+                          {{ attendee }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div v-if="getAttendeesList(event.id).goingList.length === 0 && getAttendeesList(event.id).notGoingList.length === 0" class="text-[10px] text-gray-500 italic text-center py-2">
+                      No RSVPs yet
+                    </div>
                   </div>
                 </div>
               </div>
@@ -344,6 +374,7 @@ const editingUser = ref(null);
 const showMyProfileModal = ref(false);
 const showAddPostModal = ref(false);
 const showAddEventModal = ref(false);
+const expandedEventId = ref(null);
 
 const myProfileForm = ref({ firstName: '', lastName: '', instrument: '' });
 const postForm = ref({ title: '', message: '', isUrgent: false });
@@ -462,33 +493,43 @@ const getAckCount = (postId) => {
 // TRACKING LOGIC: EVENT RSVPS
 // ==========================================
 const submitRSVP = async (eventId, status) => {
-  // Check if the user already responded to this event
-  const existingRecord = allRSVPs.value.find(r => r.event_id === eventId && r.user_id === currentUser.value.id);
+  try {
+    // Check if the user already responded to this event
+    const existingRecord = allRSVPs.value.find(r => r.event_id === eventId && r.user_id === currentUser.value.id);
 
-  let errorObj = null;
+    let error = null;
 
-  if (existingRecord) {
-    // Update existing RSVP
-    const { error } = await supabase.from('event_rsvps')
-      .update({ status: status, responded_at: new Date().toISOString() })
-      .eq('id', existingRecord.id);
-    errorObj = error;
-  } else {
-    // Insert new RSVP
-    const { error } = await supabase.from('event_rsvps').insert({
-      user_id: currentUser.value.id,
-      event_id: eventId,
-      status: status,
-      responded_at: new Date().toISOString()
-    });
-    errorObj = error;
-  }
+    if (existingRecord) {
+      // Update existing RSVP
+      const result = await supabase.from('event_rsvps')
+        .update({ status: status, responded_at: new Date().toISOString() })
+        .eq('id', existingRecord.id);
+      error = result.error;
+    } else {
+      // Insert new RSVP
+      const result = await supabase.from('event_rsvps').insert({
+        user_id: currentUser.value.id,
+        event_id: eventId,
+        status: status,
+        responded_at: new Date().toISOString()
+      });
+      error = result.error;
+    }
 
-  if (!errorObj) {
-    showToast('RSVP updated!');
-    loadDashboard();
-  } else {
-    showToast('Failed to save RSVP', 'error');
+    if (!error) {
+      showToast('RSVP updated!');
+      await loadDashboard();
+      // Ensure roster is loaded for attendees list
+      if (roster.value.length === 0) {
+        await fetchRoster();
+      }
+    } else {
+      showToast('Failed to save RSVP: ' + error.message, 'error');
+      console.error('RSVP Error:', error);
+    }
+  } catch (err) {
+    showToast('Error saving RSVP', 'error');
+    console.error('Exception in submitRSVP:', err);
   }
 };
 
@@ -503,6 +544,23 @@ const getRSVPStats = (eventId) => {
     going: eventRsvps.filter(r => r.status === 'going').length,
     notGoing: eventRsvps.filter(r => r.status === 'not_going').length
   };
+};
+
+const getAttendeesList = (eventId) => {
+  const eventRsvps = allRSVPs.value.filter(r => r.event_id === eventId);
+  const goingList = eventRsvps
+    .filter(r => r.status === 'going')
+    .map(r => {
+      const user = roster.value.find(u => u.id === r.user_id);
+      return user ? `${user.first_name} ${user.last_name}` : 'Unknown';
+    });
+  const notGoingList = eventRsvps
+    .filter(r => r.status === 'not_going')
+    .map(r => {
+      const user = roster.value.find(u => u.id === r.user_id);
+      return user ? `${user.first_name} ${user.last_name}` : 'Unknown';
+    });
+  return { goingList, notGoingList };
 };
 
 const fetchMessages = async () => {
@@ -785,6 +843,10 @@ const setupRealtime = () => {
       if (activeTab.value === 'dashboard') loadDashboard();
     })
     .subscribe();
+};
+
+const toggleAttendeesList = (eventId) => {
+  expandedEventId.value = expandedEventId.value === eventId ? null : eventId;
 };
 
 const handleEscKey = (e) => {
