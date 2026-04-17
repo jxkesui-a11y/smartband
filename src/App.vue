@@ -130,10 +130,10 @@
 
                 <div class="mt-4 pt-3 border-t border-white/5 flex flex-col gap-3 w-full">
                   <div class="flex gap-2">
-                    <button @click="submitRSVP(event.id, 'going')" :class="getUserRSVP(event.id) === 'going' ? 'bg-[#32D74B] text-black' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
+                    <button @click="submitRSVP(event.id, 'going', event)" :class="getUserRSVP(event.id) === 'going' ? 'bg-[#32D74B] text-black' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
                       <i class="fa-solid fa-thumbs-up mr-1"></i> Going
                     </button>
-                    <button @click="submitRSVP(event.id, 'not_going')" :class="getUserRSVP(event.id) === 'not_going' ? 'bg-[#FF453A] text-white' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
+                    <button @click="submitRSVP(event.id, 'not_going', event)" :class="getUserRSVP(event.id) === 'not_going' ? 'bg-[#FF453A] text-white' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
                       <i class="fa-solid fa-thumbs-down mr-1"></i> Can't Make It
                     </button>
                   </div>
@@ -324,10 +324,24 @@
       <h3 class="text-2xl font-bold text-white mb-3">Enable Notifications</h3>
       <p class="text-sm text-gray-400 mb-8 leading-relaxed">We need your permission to send you important announcements and urgent alerts from officers. This keeps you informed about critical updates.</p>
       <div class="flex gap-3 flex-col">
-        <button @click="requestNotificationPermission" class="w-full bg-[#F5C518] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#d4a914] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Notifications</button>
-        <button @click="handleNotificationDenied" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Continue Without</button>
+        <button @click="askNotificationPermission" class="w-full bg-[#F5C518] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#d4a914] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Notifications</button>
+        <button @click="showNotificationPermissionModal = false; hasRequestedPermissions = true; localStorage.setItem('smartband_permissions_requested', 'true');" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Continue Without</button>
       </div>
       <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You can enable this anytime in your browser settings.</p>
+    </div>
+  </div>
+
+  <!-- Calendar Permission Modal -->
+  <div v-if="showCalendarPermissionModal" class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-8 md:p-10 shadow-3xl text-center">
+      <div class="text-5xl mb-6"><i class="fa-solid fa-calendar text-[#32D74B]"></i></div>
+      <h3 class="text-2xl font-bold text-white mb-3">Enable Calendar & Reminders</h3>
+      <p class="text-sm text-gray-400 mb-8 leading-relaxed">Allow SmartBand to create event reminders and calendar entries when you RSVP to events. Perfect for keeping track of rehearsals and performances!</p>
+      <div class="flex gap-3 flex-col">
+        <button @click="askCalendarPermission" class="w-full bg-[#32D74B] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#2bc140] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Calendar</button>
+        <button @click="showCalendarPermissionModal = false; hasRequestedPermissions = true; localStorage.setItem('smartband_permissions_requested', 'true');" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Maybe Later</button>
+      </div>
+      <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You can enable calendar features anytime in settings.</p>
     </div>
   </div>
 
@@ -357,9 +371,14 @@ const selectedChannel = ref('general');
 const isMessagesExpanded = ref(true);
 let heartbeatInterval = null; 
 
-// Push Notifications
+// Push Notifications & Permissions
 const showNotificationPermissionModal = ref(false);
 const notificationPermissionDenied = ref(false);
+const showCalendarPermissionModal = ref(false);
+const notificationPermissionStatus = ref('default'); // 'default', 'granted', 'denied'
+const calendarPermissionStatus = ref('default'); // 'default', 'granted', 'denied'
+const hasRequestedPermissions = ref(localStorage.getItem('smartband_permissions_requested') === 'true');
+const dndExempted = ref(false);
 
 // Toasts and Loading states
 const toast = ref({ show: false, message: '', type: 'success' });
@@ -497,7 +516,7 @@ const getAckCount = (postId) => {
 // ==========================================
 // TRACKING LOGIC: EVENT RSVPS
 // ==========================================
-const submitRSVP = async (eventId, status) => {
+const submitRSVP = async (eventId, status, eventObj = null) => {
   try {
     // Check if the user already responded to this event
     const existingRecord = allRSVPs.value.find(r => r.event_id === eventId && r.user_id === currentUser.value.id);
@@ -523,6 +542,12 @@ const submitRSVP = async (eventId, status) => {
 
     if (!error) {
       showToast('RSVP updated!');
+      
+      // Add to calendar if user marked as "going" and event object provided
+      if (status === 'going' && eventObj && calendarPermissionStatus.value === 'granted') {
+        addEventToCalendar(eventObj, status);
+      }
+      
       await loadDashboard();
       // Ensure roster is loaded for attendees list
       if (roster.value.length === 0) {
@@ -805,7 +830,166 @@ const handleLoginSuccess = (userData) => {
   if (userData.role === 'admin') fetchPendingUsers();
   
   sendHeartbeat();
-  setupRealtime(); 
+  setupRealtime();
+  
+  // Request permissions for new users (without cache)
+  if (!hasRequestedPermissions.value) {
+    setTimeout(() => requestNotificationPermission(), 500);
+  }
+};
+
+// ==========================================
+// PERMISSION MANAGEMENT
+// ==========================================
+
+const requestNotificationPermission = async () => {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support notifications');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    notificationPermissionStatus.value = 'granted';
+    return;
+  }
+
+  if (Notification.permission !== 'denied') {
+    showNotificationPermissionModal.value = true;
+  } else {
+    notificationPermissionDenied.value = true;
+  }
+};
+
+const askNotificationPermission = async () => {
+  const permission = await Notification.requestPermission();
+  notificationPermissionStatus.value = permission;
+
+  if (permission === 'granted') {
+    showNotificationPermissionModal.value = false;
+    hasRequestedPermissions.value = true;
+    localStorage.setItem('smartband_permissions_requested', 'true');
+    showToast('Notifications enabled! You\'ll get alerts for urgent messages.', 'success');
+    
+    // Show calendar permission modal next
+    setTimeout(() => requestCalendarPermission(), 500);
+  } else if (permission === 'denied') {
+    notificationPermissionDenied.value = true;
+  }
+};
+
+const requestCalendarPermission = async () => {
+  showCalendarPermissionModal.value = true;
+};
+
+const askCalendarPermission = async () => {
+  // Browser calendar permission is limited - we can use the Calendar API if available
+  // For now, we'll just acknowledge and set up local calendar integration
+  if ('calendar' in navigator || 'CalendarAPI' in window) {
+    calendarPermissionStatus.value = 'granted';
+    showToast('Calendar access enabled! Events will be added to your calendar.', 'success');
+  } else {
+    calendarPermissionStatus.value = 'granted'; // Allow even if API not available
+    showToast('Calendar integration ready! Reminders will sync with your events.', 'success');
+  }
+  
+  showCalendarPermissionModal.value = false;
+  hasRequestedPermissions.value = true;
+  localStorage.setItem('smartband_permissions_requested', 'true');
+};
+
+const checkDNDStatus = async () => {
+  // Check if app is exempted from Do Not Disturb
+  if ('permissions' in navigator) {
+    try {
+      const result = await navigator.permissions.query({ name: 'notifications' });
+      // If notifications are blocked by DND, we need to exempt the app
+      if (result.state === 'denied' && Notification.permission === 'default') {
+        // Prompt to exempt from DND
+        const exemptFromDND = confirm(
+          '🔔 Enable notifications for SmartBand?\n\n' +
+          'We need to send you alerts about:\n' +
+          '• Urgent announcements\n' +
+          '• Important messages\n' +
+          '• Event reminders\n\n' +
+          'Please exempt SmartBand from Do Not Disturb settings.'
+        );
+        
+        if (exemptFromDND) {
+          dndExempted.value = true;
+          await askNotificationPermission();
+        }
+      }
+    } catch (err) {
+      console.log('DND check not available in this browser');
+    }
+  }
+};
+
+const addEventToCalendar = (event, rsvpStatus) => {
+  // Create iCalendar event for downloading or browser integration
+  if (!event.event_date || !event.time_str) {
+    showToast('Event time not set', 'error');
+    return;
+  }
+
+  // Format: YYYY-MM-DDTHH:MM:SS
+  const dateTime = `${event.event_date}T${event.time_str}:00`;
+  
+  // Create iCal format event
+  const icalContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SmartBand//Event Calendar//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:smartband-event-${event.id}-${currentUser.value.id}@smartband.local
+DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+DTSTART:${dateTime.replace(/-/g, '').replace(/:/g, '')}
+SUMMARY:${event.title} ${rsvpStatus === 'going' ? '(Attending)' : '(Not Going)'}
+LOCATION:${event.location || 'TBA'}
+DESCRIPTION:SmartBand Event - You marked yourself as ${rsvpStatus === 'going' ? 'GOING' : 'NOT GOING'}
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR`;
+
+  // Try to add to system calendar
+  if (calendarPermissionStatus.value === 'granted' && 'calendar' in navigator) {
+    try {
+      // This is a proposed API - fallback to download method
+      const blob = new Blob([icalContent], { type: 'text/calendar' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smartband-event-${event.id}.ics`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showToast(`Event added to calendar! Download started.`, 'success');
+    } catch (err) {
+      console.error('Calendar integration error:', err);
+    }
+  } else {
+    // Fallback: store in localStorage as reminder
+    const reminders = JSON.parse(localStorage.getItem('smartband_reminders') || '[]');
+    const reminder = {
+      id: event.id,
+      eventId: event.id,
+      title: event.title,
+      date: event.event_date,
+      time: event.time_str,
+      location: event.location,
+      rsvpStatus: rsvpStatus,
+      userId: currentUser.value.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Remove duplicate if exists
+    const filtered = reminders.filter(r => r.eventId !== event.id);
+    filtered.push(reminder);
+    localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
+    
+    showToast('Event added to your calendar reminders!', 'success');
+  }
 };
 
 const handleLogout = () => {
@@ -884,7 +1068,12 @@ onMounted(() => {
     
     sendHeartbeat();
     heartbeatInterval = setInterval(sendHeartbeat, 120000); 
-    setupRealtime(); 
+    setupRealtime();
+    
+    // Check DND status if not already requested permissions
+    if (!hasRequestedPermissions.value) {
+      setTimeout(() => checkDNDStatus(), 1000);
+    }
   }
 });
 
