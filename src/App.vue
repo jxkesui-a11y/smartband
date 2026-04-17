@@ -436,13 +436,6 @@ const getAckCount = (postId) => {
   return allAcknowledgments.value.filter(ack => ack.post_id === postId).length;
 };
 
-const loadDashboard = async () => {
-  const { data: posts } = await supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false });
-  const { data: events } = await supabase.from('events').select('*').order('event_date', { ascending: true });
-  if (posts) dashboardPosts.value = posts;
-  if (events) dashboardEvents.value = events;
-};
-
 const fetchMessages = async () => {
   const { data } = await supabase.from('messages')
     .select('*, users(first_name, last_name)')
