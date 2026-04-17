@@ -23,7 +23,7 @@
               <i class="fa-regular fa-message w-5 text-center text-lg"></i><span class="flex-1">Messages</span><i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-300" :class="isMessagesExpanded ? 'rotate-0' : '-rotate-90'"></i>
             </button>
             <div v-if="isMessagesExpanded" class="flex flex-col gap-1 ml-9 mt-1 overflow-hidden transition-all duration-300">
-              <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold transition-all text-left uppercase tracking-widest" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500 hover:text-gray-300'">
+              <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold transition-all text-left uppercase tracking-widest relative" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500 hover:text-gray-300'">
                 <i :class="ch.icon" class="opacity-50 text-[10px]"></i><span>{{ ch.name }}</span>
               </button>
             </div>
@@ -44,7 +44,7 @@
               <i class="fa-regular fa-message w-5 text-center text-lg"></i><span class="flex-1">Messages</span><i class="fa-solid fa-chevron-down text-[10px]"></i>
             </button>
             <div v-if="isMessagesExpanded" class="flex flex-col gap-1 ml-9 mt-1">
-              <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold text-left uppercase tracking-widest" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500'">
+              <button v-for="ch in channels" :key="ch.id" @click="activeTab = 'messages'; selectedChannel = ch.id; showMobileMenu = false" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[10px] font-bold text-left uppercase tracking-widest relative" :class="selectedChannel === ch.id && activeTab === 'messages' ? 'text-[#F5C518]' : 'text-gray-500'">
                 <i :class="ch.icon" class="opacity-50 text-[10px]"></i><span>{{ ch.name }}</span>
               </button>
             </div>
@@ -383,6 +383,7 @@ const eventForm = ref({ title: '', date: '', time: '', location: '' });
 // Data
 const chatMessages = ref([]);
 const newMessageContent = ref('');
+const unreadMessages = ref({ general: 0, important: 0, sectionals: 0 });
 const pendingUsers = ref([]);
 const pendingCount = ref(0);
 let isInitialLoad = true; 
@@ -571,6 +572,8 @@ const fetchMessages = async () => {
     
   if (data) {
     chatMessages.value = data;
+    // Clear unread for this channel when viewing it
+    unreadMessages.value[selectedChannel.value] = 0;
     await nextTick();
     scrollToBottom();
   }
@@ -829,8 +832,20 @@ let realtimeChannel;
 
 const setupRealtime = () => {
   realtimeChannel = supabase.channel('smartband-sync')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-      if (activeTab.value === 'messages') fetchMessages();
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+      if (activeTab.value === 'messages') {
+        if (payload.new?.channel === selectedChannel.value) {
+          fetchMessages();
+        } else if (payload.new?.channel) {
+          // Increment unread for other channels
+          unreadMessages.value[payload.new.channel]++;
+        }
+      } else {
+        // If not on messages tab, increment unread
+        if (payload.new?.channel) {
+          unreadMessages.value[payload.new.channel]++;
+        }
+      }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
       if (activeTab.value === 'roster') fetchRoster();
