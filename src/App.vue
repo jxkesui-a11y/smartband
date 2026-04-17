@@ -325,7 +325,7 @@
       <p class="text-sm text-gray-400 mb-8 leading-relaxed">We need your permission to send you important announcements and urgent alerts from officers. This keeps you informed about critical updates.</p>
       <div class="flex gap-3 flex-col">
         <button @click="askNotificationPermission" class="w-full bg-[#F5C518] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#d4a914] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Notifications</button>
-        <button @click="showNotificationPermissionModal = false; hasRequestedPermissions = true; localStorage.setItem('smartband_permissions_requested', 'true');" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Continue Without</button>
+        <button @click="skipNotificationPermission" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Continue Without</button>
       </div>
       <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You can enable this anytime in your browser settings.</p>
     </div>
@@ -339,7 +339,7 @@
       <p class="text-sm text-gray-400 mb-8 leading-relaxed">Allow SmartBand to create event reminders and calendar entries when you RSVP to events. Perfect for keeping track of rehearsals and performances!</p>
       <div class="flex gap-3 flex-col">
         <button @click="askCalendarPermission" class="w-full bg-[#32D74B] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#2bc140] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Calendar</button>
-        <button @click="showCalendarPermissionModal = false; hasRequestedPermissions = true; localStorage.setItem('smartband_permissions_requested', 'true');" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Maybe Later</button>
+        <button @click="skipCalendarPermission" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Maybe Later</button>
       </div>
       <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You can enable calendar features anytime in settings.</p>
     </div>
@@ -375,9 +375,9 @@ let heartbeatInterval = null;
 const showNotificationPermissionModal = ref(false);
 const notificationPermissionDenied = ref(false);
 const showCalendarPermissionModal = ref(false);
-const notificationPermissionStatus = ref('default'); // 'default', 'granted', 'denied'
+const notificationPermissionStatus = ref(Notification?.permission || 'default'); // 'default', 'granted', 'denied'
 const calendarPermissionStatus = ref('default'); // 'default', 'granted', 'denied'
-const hasRequestedPermissions = ref(localStorage.getItem('smartband_permissions_requested') === 'true');
+const userPermissionsHandled = ref(false); // Flag to track if we've asked this session
 const dndExempted = ref(false);
 
 // Toasts and Loading states
@@ -832,9 +832,25 @@ const handleLoginSuccess = (userData) => {
   sendHeartbeat();
   setupRealtime();
   
-  // Request permissions for new users (without cache)
-  if (!hasRequestedPermissions.value) {
-    setTimeout(() => requestNotificationPermission(), 500);
+  // Request permissions on login (one time per session)
+  if (!userPermissionsHandled.value) {
+    userPermissionsHandled.value = true;
+    setTimeout(() => {
+      // Check current notification permission status
+      const currentStatus = Notification?.permission || 'default';
+      notificationPermissionStatus.value = currentStatus;
+      
+      if (currentStatus === 'default') {
+        // Permission hasn't been requested yet - show modal
+        showNotificationPermissionModal.value = true;
+      } else if (currentStatus === 'denied') {
+        // Permission was previously denied
+        notificationPermissionDenied.value = true;
+      } else if (currentStatus === 'granted') {
+        // Permission already granted - show calendar modal
+        setTimeout(() => showCalendarPermissionModal.value = true, 300);
+      }
+    }, 500);
   }
 };
 
@@ -842,88 +858,46 @@ const handleLoginSuccess = (userData) => {
 // PERMISSION MANAGEMENT
 // ==========================================
 
-const requestNotificationPermission = async () => {
-  if (!('Notification' in window)) {
-    console.log('This browser does not support notifications');
-    return;
-  }
-
-  if (Notification.permission === 'granted') {
-    notificationPermissionStatus.value = 'granted';
-    return;
-  }
-
-  if (Notification.permission !== 'denied') {
-    showNotificationPermissionModal.value = true;
-  } else {
-    notificationPermissionDenied.value = true;
-  }
-};
-
 const askNotificationPermission = async () => {
-  const permission = await Notification.requestPermission();
-  notificationPermissionStatus.value = permission;
+  try {
+    const permission = await Notification.requestPermission();
+    notificationPermissionStatus.value = permission;
+    console.log('Notification permission:', permission);
 
-  if (permission === 'granted') {
-    showNotificationPermissionModal.value = false;
-    hasRequestedPermissions.value = true;
-    localStorage.setItem('smartband_permissions_requested', 'true');
-    showToast('Notifications enabled! You\'ll get alerts for urgent messages.', 'success');
-    
-    // Show calendar permission modal next
-    setTimeout(() => requestCalendarPermission(), 500);
-  } else if (permission === 'denied') {
-    notificationPermissionDenied.value = true;
+    if (permission === 'granted') {
+      showNotificationPermissionModal.value = false;
+      showToast('✅ Notifications enabled! You\'ll get alerts for urgent messages.', 'success');
+      
+      // Show calendar permission modal next
+      setTimeout(() => showCalendarPermissionModal.value = true, 500);
+    } else if (permission === 'denied') {
+      notificationPermissionDenied.value = true;
+      showNotificationPermissionModal.value = false;
+    }
+  } catch (err) {
+    console.error('Permission request error:', err);
+    showToast('Could not request permission', 'error');
   }
-};
-
-const requestCalendarPermission = async () => {
-  showCalendarPermissionModal.value = true;
 };
 
 const askCalendarPermission = async () => {
   // Browser calendar permission is limited - we can use the Calendar API if available
   // For now, we'll just acknowledge and set up local calendar integration
-  if ('calendar' in navigator || 'CalendarAPI' in window) {
-    calendarPermissionStatus.value = 'granted';
-    showToast('Calendar access enabled! Events will be added to your calendar.', 'success');
-  } else {
-    calendarPermissionStatus.value = 'granted'; // Allow even if API not available
-    showToast('Calendar integration ready! Reminders will sync with your events.', 'success');
-  }
-  
+  calendarPermissionStatus.value = 'granted';
+  showToast('📅 Calendar integration ready! Event reminders will sync.', 'success');
   showCalendarPermissionModal.value = false;
-  hasRequestedPermissions.value = true;
-  localStorage.setItem('smartband_permissions_requested', 'true');
 };
 
-const checkDNDStatus = async () => {
-  // Check if app is exempted from Do Not Disturb
-  if ('permissions' in navigator) {
-    try {
-      const result = await navigator.permissions.query({ name: 'notifications' });
-      // If notifications are blocked by DND, we need to exempt the app
-      if (result.state === 'denied' && Notification.permission === 'default') {
-        // Prompt to exempt from DND
-        const exemptFromDND = confirm(
-          '🔔 Enable notifications for SmartBand?\n\n' +
-          'We need to send you alerts about:\n' +
-          '• Urgent announcements\n' +
-          '• Important messages\n' +
-          '• Event reminders\n\n' +
-          'Please exempt SmartBand from Do Not Disturb settings.'
-        );
-        
-        if (exemptFromDND) {
-          dndExempted.value = true;
-          await askNotificationPermission();
-        }
-      }
-    } catch (err) {
-      console.log('DND check not available in this browser');
-    }
-  }
+const skipCalendarPermission = () => {
+  calendarPermissionStatus.value = 'default';
+  showCalendarPermissionModal.value = false;
 };
+
+const skipNotificationPermission = () => {
+  showNotificationPermissionModal.value = false;
+  showToast('⏭️ You can enable notifications anytime in settings.', 'success');
+};
+
 
 const addEventToCalendar = (event, rsvpStatus) => {
   // Create iCalendar event for downloading or browser integration
@@ -1070,9 +1044,21 @@ onMounted(() => {
     heartbeatInterval = setInterval(sendHeartbeat, 120000); 
     setupRealtime();
     
-    // Check DND status if not already requested permissions
-    if (!hasRequestedPermissions.value) {
-      setTimeout(() => checkDNDStatus(), 1000);
+    // If user is already logged in (page refresh), still handle permissions if not done this session
+    if (!userPermissionsHandled.value) {
+      userPermissionsHandled.value = true;
+      setTimeout(() => {
+        const currentStatus = Notification?.permission || 'default';
+        notificationPermissionStatus.value = currentStatus;
+        
+        if (currentStatus === 'default') {
+          showNotificationPermissionModal.value = true;
+        } else if (currentStatus === 'denied') {
+          notificationPermissionDenied.value = true;
+        } else if (currentStatus === 'granted') {
+          setTimeout(() => showCalendarPermissionModal.value = true, 300);
+        }
+      }, 500);
     }
   }
 });
