@@ -86,11 +86,26 @@
                 <button v-if="canManageDashboard" @click="showAddPostModal = true" class="text-[10px] bg-[#F5C518] text-black px-4 py-2 font-bold uppercase rounded-lg hover:scale-105 transition-transform"><i class="fa-solid fa-plus mr-1"></i> Add Post</button>
               </div>
               <div v-for="noti in dashboardPosts" :key="noti.id" class="p-4 md:p-6 rounded-2xl border mb-4 bg-[#111111] relative group" :class="noti.is_urgent ? 'border-[#4a1c1c] bg-[#1a0f0f]' : 'border-white/5'">
-                <button v-if="canManageDashboard" @click="deletePost(noti.id)" class="absolute top-4 right-4 text-gray-600 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity min-w-[44px] min-h-[44px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>
-                <div class="flex justify-between items-center mb-4"><span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">{{ formatDate(noti.created_at) }} - By {{ noti.first_name }}</span></div>
-                <h3 class="font-bold text-white text-base md:text-lg mb-2">{{ noti.title }}</h3>
-                <p class="text-xs md:text-sm text-gray-400 leading-relaxed break-words">{{ noti.message }}</p>
-              </div>
+  
+  <div class="flex justify-between items-center mb-4">...</div>
+  <h3 class="font-bold text-white text-base md:text-lg mb-2">{{ noti.title }}</h3>
+  <p class="text-xs md:text-sm text-gray-400 leading-relaxed break-words">{{ noti.message }}</p>
+  
+  <div class="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+    
+    <button v-if="!hasAcknowledged(noti.id)" @click="acknowledgePost(noti.id)" class="bg-[#32D74B]/10 text-[#32D74B] border border-[#32D74B]/20 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#32D74B]/20 transition-all">
+      <i class="fa-solid fa-check mr-1"></i> Acknowledge
+    </button>
+    <span v-else class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-check-double text-[#32D74B] mr-1"></i> Acknowledged
+    </span>
+
+    <button v-if="canManageDashboard" class="text-[10px] text-gray-400 hover:text-[#F5C518] uppercase tracking-widest font-bold">
+      <i class="fa-solid fa-eye mr-1"></i> {{ getAckCount(noti.id) }} Views
+    </button>
+  </div>
+
+</div>
               <div v-if="dashboardPosts.length === 0" class="text-gray-600 text-sm italic">No active announcements.</div>
             </section>
             <section>
@@ -210,7 +225,7 @@
           </div>
           <select v-model="editingUser.tier" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white capitalize outline-none focus:border-[#F5C518]"><option value="senior">Senior Musician</option><option value="junior">Junior Musician</option><option value="none">Staff / Non-Player</option></select>
           <select v-model="editingUser.instrument" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]"><option v-for="inst in instrumentList" :key="inst" :value="inst">{{ inst }}</option></select>
-          <div class="flex gap-3 md:gap-4 pt-4 md:pt-6"><button @click="editingUser = null" class="flex-1 py-4 md:py-5 border border-white/10 rounded-[20px] text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 min-h-[44px]">Cancel</button><button @click="saveUserChanges" class="flex-1 py-4 md:py-5 bg-[#F5C518] text-black rounded-[20px] font-bold text-[10px] uppercase tracking-widest min-h-[44px]">Save</button></div>
+          <div class="flex gap-3 md:gap-4 pt-4 md:pt-6"><button @click="editingUser = null" class="flex-1 py-4 md:py-5 border border-white/10 rounded-[20px] text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 min-h-[44px]" :disabled="isSubmitting">Cancel</button><button @click="saveUserChanges" class="flex-1 py-4 md:py-5 bg-[#F5C518] text-black rounded-[20px] font-bold text-[10px] uppercase tracking-widest min-h-[44px]" :disabled="isSubmitting"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-2"></i>{{ isSubmitting ? 'Saving...' : 'Save' }}</button></div>
         </div>
       </div>
     </div>
@@ -331,6 +346,33 @@ const instrumentList = ['Trumpet', 'Alto Sax', 'Tenor Sax', 'Clarinet', 'Flute',
 const channels = [{ id: 'general', name: 'general', icon: 'fa-hashtag' }, { id: 'important', name: 'important', icon: 'fa-bullhorn' }, { id: 'sectionals', name: 'sectionals', icon: 'fa-users-rectangle' }];
 
 const canManageDashboard = computed(() => ['admin', 'president', 'vp'].includes(currentUser.value?.role));
+// --- OFFICER ROLE MANAGEMENT LOGIC ---
+const getAssignedOfficerRoles = computed(() => {
+  if (!roster.value) return [];
+  const officerRoles = ['president', 'vp', 'secretary', 'treasurer'];
+  // Find which officer roles are already taken by OTHER people
+  return roster.value
+    .filter(u => officerRoles.includes(u.role) && u.id !== editingUser.value?.id)
+    .map(u => u.role);
+});
+
+const getAvailableRoles = computed(() => {
+  const assigned = getAssignedOfficerRoles.value || [];
+  const roles = [
+    { value: 'admin', label: 'Admin' },
+    { value: 'president', label: 'President' },
+    { value: 'vp', label: 'Vice President' },
+    { value: 'secretary', label: 'Secretary' },
+    { value: 'treasurer', label: 'Treasurer' },
+    { value: 'member', label: 'General Member' }
+  ];
+
+  return roles.map(r => ({
+    ...r,
+    disabled: assigned.includes(r.value) // Disable if someone else has this role
+  }));
+});
+
 const userInitials = computed(() => `${currentUser.value?.first_name[0]}${currentUser.value?.last_name[0]}`.toUpperCase());
 
 const filteredTabs = computed(() => {
@@ -353,6 +395,47 @@ const filteredSheets = computed(() => {
 // SUPABASE DATA FETCHING
 // ==========================================
 
+// Add a ref to store acknowledgments
+const allAcknowledgments = ref([]);
+
+// Fetch them when loading the dashboard
+const loadDashboard = async () => {
+  const { data: posts } = await supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false });
+  const { data: events } = await supabase.from('events').select('*').order('event_date', { ascending: true });
+  
+  // NEW: Fetch Acknowledgments
+  const { data: acks } = await supabase.from('post_acknowledgments').select('*');
+  if (acks) allAcknowledgments.value = acks;
+
+  if (posts) dashboardPosts.value = posts;
+  if (events) dashboardEvents.value = events;
+};
+
+// NEW: The Acknowledge Function
+const acknowledgePost = async (postId) => {
+  const { error } = await supabase.from('post_acknowledgments').insert({
+    user_id: currentUser.value.id,
+    post_id: postId,
+    acknowledged_at: new Date().toISOString()
+  });
+
+  if (!error) {
+    showToast('Marked as read!');
+    loadDashboard(); // Refresh to update UI
+  } else {
+    showToast('Failed to acknowledge', 'error');
+  }
+};
+
+// NEW: Helper Functions for the UI
+const hasAcknowledged = (postId) => {
+  return allAcknowledgments.value.some(ack => ack.post_id === postId && ack.user_id === currentUser.value.id);
+};
+
+const getAckCount = (postId) => {
+  return allAcknowledgments.value.filter(ack => ack.post_id === postId).length;
+};
+
 const loadDashboard = async () => {
   const { data: posts } = await supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false });
   const { data: events } = await supabase.from('events').select('*').order('event_date', { ascending: true });
@@ -374,8 +457,14 @@ const fetchMessages = async () => {
 };
 
 const fetchRoster = async () => {
-  const { data } = await supabase.from('users').select('*').eq('status', 'approved').order('role', { ascending: true });
-  if (data) roster.value = data;
+  try {
+    const { data, error } = await supabase.from('users').select('*').eq('status', 'approved').order('role', { ascending: true });
+    if (error) throw error;
+    if (data) roster.value = data;
+  } catch (err) {
+    console.error('Failed to fetch roster:', err);
+    showToast('Failed to load roster', 'error');
+  }
 };
 
 const fetchMusicSheets = async () => {
@@ -384,13 +473,18 @@ const fetchMusicSheets = async () => {
 };
 
 const fetchPendingUsers = async () => {
-  const { data } = await supabase.from('users').select('*').eq('status', 'pending');
-  if (data) {
-    if (data.length > pendingCount.value && !isInitialLoad) {
-      if (typeof playAlarmSound === 'function') playAlarmSound(); 
+  try {
+    const { data, error } = await supabase.from('users').select('*').eq('status', 'pending');
+    if (error) throw error;
+    if (data) {
+      if (data.length > pendingCount.value && !isInitialLoad) {
+        if (typeof playAlarmSound === 'function') playAlarmSound(); 
+      }
+      pendingUsers.value = data;
+      pendingCount.value = data.length;
     }
-    pendingUsers.value = data;
-    pendingCount.value = data.length;
+  } catch (err) {
+    console.error('Failed to fetch pending users:', err);
   }
   isInitialLoad = false;
 };
@@ -437,31 +531,94 @@ const updateMyProfile = async () => {
 };
 
 const saveUserChanges = async () => {
-  const { error } = await supabase.from('users')
-    .update({ role: editingUser.value.role, tier: editingUser.value.tier, instrument: editingUser.value.instrument })
-    .eq('id', editingUser.value.id);
-  if (!error) { editingUser.value = null; showToast('Member updated!'); fetchRoster(); } 
-  else showToast('Error saving changes', 'error');
+  if (isSubmitting.value) return;
+  isSubmitting.value = true;
+  
+  try {
+    const { error } = await supabase.from('users')
+      .update({ role: editingUser.value.role, tier: editingUser.value.tier, instrument: editingUser.value.instrument })
+      .eq('id', editingUser.value.id);
+    
+    if (!error) { 
+      editingUser.value = null; 
+      showToast('Member updated!'); 
+      await fetchRoster();
+    } else { 
+      showToast('Error saving changes', 'error');
+      console.error('Supabase error:', error);
+    }
+  } catch (err) {
+    showToast('Failed to save changes', 'error');
+    console.error('Exception in saveUserChanges:', err);
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const deleteUser = async (uId) => {
   if(!confirm("Permanently delete this member?")) return;
-  const { error } = await supabase.from('users').delete().eq('id', uId);
-  if (!error) { showToast('Member deleted'); fetchRoster(); }
-  else showToast('Error deleting member', 'error');
+  isSubmitting.value = true;
+  
+  try {
+    const { error } = await supabase.from('users').delete().eq('id', uId);
+    if (!error) { 
+      showToast('Member deleted'); 
+      await fetchRoster();
+    }
+    else {
+      showToast('Error deleting member', 'error');
+      console.error('Supabase error:', error);
+    }
+  } catch (err) {
+    showToast('Failed to delete member', 'error');
+    console.error('Exception in deleteUser:', err);
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const approveUser = async (uId) => {
-  const { error } = await supabase.from('users').update({ status: 'approved' }).eq('id', uId);
-  if (!error) { showToast('Member approved!'); fetchPendingUsers(); fetchRoster(); }
-  else showToast('Failed to approve', 'error');
+  isSubmitting.value = true;
+  
+  try {
+    const { error } = await supabase.from('users').update({ status: 'approved' }).eq('id', uId);
+    if (!error) { 
+      showToast('Member approved!'); 
+      await fetchPendingUsers(); 
+      await fetchRoster();
+    }
+    else {
+      showToast('Failed to approve', 'error');
+      console.error('Supabase error:', error);
+    }
+  } catch (err) {
+    showToast('Failed to approve member', 'error');
+    console.error('Exception in approveUser:', err);
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const declineUser = async (uId) => {
   if (!confirm("Are you sure you want to decline and delete this request?")) return;
-  const { error } = await supabase.from('users').delete().eq('id', uId);
-  if (!error) { showToast('Request declined'); fetchPendingUsers(); }
-  else showToast('Failed to decline user', 'error');
+  isSubmitting.value = true;
+  
+  try {
+    const { error } = await supabase.from('users').delete().eq('id', uId);
+    if (!error) { 
+      showToast('Request declined'); 
+      await fetchPendingUsers();
+    }
+    else {
+      showToast('Failed to decline user', 'error');
+      console.error('Supabase error:', error);
+    }
+  } catch (err) {
+    showToast('Failed to decline user', 'error');
+    console.error('Exception in declineUser:', err);
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const submitPost = async () => {
@@ -537,7 +694,14 @@ const formatDate = (d) => new Date(d).toLocaleDateString();
 const scrollToBottom = () => nextTick(() => { const b = document.getElementById('chatBox'); if(b) b.scrollTop = b.scrollHeight; });
 const toggleProfile = () => { showProfileMenu.value = !showProfileMenu.value; };
 const closeMenus = () => { showProfileMenu.value = false; showMobileMenu.value = false; };
-const openEditModal = (u) => { editingUser.value = {...u}; };
+const openEditModal = (u) => { 
+  try {
+    editingUser.value = { ...u }; 
+  } catch (err) {
+    showToast('Failed to open edit form', 'error');
+    console.error('Exception in openEditModal:', err);
+  }
+};
 const handleMessagesClick = () => { activeTab.value = 'messages'; isMessagesExpanded.value = !isMessagesExpanded.value; };
 
 // --- SUPABASE REALTIME (The Magic that replaces Pusher) ---
