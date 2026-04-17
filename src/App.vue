@@ -1012,11 +1012,7 @@ END:VCALENDAR`;
     createdAt: new Date().toISOString()
   };
   
-  // Remove duplicate if exists
-  const filtered = reminders.filter(r => r.eventId !== event.id);
-  filtered.push(reminder);
-  localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
-};
+
     };
     
     // Remove duplicate if exists
@@ -1025,8 +1021,8 @@ END:VCALENDAR`;
     localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
     
     showToast('Event added to your calendar reminders!', 'success');
-  }
-};
+  
+
 
 const handleLogout = () => {
   localStorage.removeItem('smartband_user'); 
@@ -1122,20 +1118,16 @@ onMounted(() => {
     // If user is already logged in (page refresh), still handle permissions if not done this session
     if (!userPermissionsHandled.value) {
       userPermissionsHandled.value = true;
-      localStorage.setItem('smartband_permissions_session', 'true');
       setTimeout(() => {
         const currentStatus = Notification?.permission || 'default';
         notificationPermissionStatus.value = currentStatus;
         
-        if (currentStatus === 'default') {\n          showNotificationPermissionModal.value = true;
+        if (currentStatus === 'default') {
+          showNotificationPermissionModal.value = true;
         } else if (currentStatus === 'denied') {
           notificationPermissionDenied.value = true;
         } else if (currentStatus === 'granted') {
-          // Check if calendar permission was already asked
-          const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
-          if (calendarStatus === 'default') {
-            setTimeout(() => showCalendarPermissionModal.value = true, 300);
-          }
+          setTimeout(() => showCalendarPermissionModal.value = true, 300);
         }
       }, 500);
     }
