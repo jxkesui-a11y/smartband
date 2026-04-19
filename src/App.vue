@@ -316,7 +316,7 @@ const filteredTabs = computed(() => {
     { id: 'roster', name: 'Band Roster', icon: 'fa-solid fa-users' },
     { id: 'requests', name: 'Requests', icon: 'fa-solid fa-user-shield', adminOnly: true }
   ];
-  return tabs.filter(t => !t.adminOnly || currentUser.value?.role === 'admin');
+  return tabs.filter(t => !t.adminOnly || ['admin', 'president', 'vp'].includes(currentUser.value?.role));
 });
 
 const filteredSheets = computed(() => {
@@ -543,6 +543,27 @@ const sendMessage = async () => {
 };
 
 const updateMyProfile = async (formData) => {
+  if (formData.passwords?.current && formData.passwords?.new) {
+    // Attempt to verify the current password
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: currentUser.value.email,
+      password: formData.passwords.current
+    });
+    if (verifyError) {
+      showToast('Current password incorrect', 'error');
+      return;
+    }
+    
+    // Update the password
+    const { error: pwdError } = await supabase.auth.updateUser({
+      password: formData.passwords.new
+    });
+    if (pwdError) {
+      showToast(pwdError.message, 'error');
+      return;
+    }
+  }
+
   const { error } = await supabase.from('users')
     .update({ first_name: formData.firstName, last_name: formData.lastName, instrument: formData.instrument })
     .eq('id', currentUser.value.id);
@@ -759,7 +780,7 @@ const handleLoginSuccess = (userData) => {
   myProfileForm.value = { firstName: userData.first_name, lastName: userData.last_name, instrument: userData.instrument };
   
   loadDashboard(); fetchRoster(); fetchMusicSheets();
-  if (userData.role === 'admin') fetchPendingUsers();
+  if (['admin', 'president', 'vp'].includes(userData.role)) fetchPendingUsers();
   
   sendHeartbeat();
   setupRealtime();

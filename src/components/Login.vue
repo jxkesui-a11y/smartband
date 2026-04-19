@@ -226,6 +226,22 @@ const handleAuth = async () => {
       return;
     }
 
+    if (authData?.user) {
+      const { error: dbError } = await supabase.from('users').upsert({
+        id: authData.user.id,
+        email: email.value,
+        first_name: firstName.value,
+        last_name: lastName.value,
+        instrument: instrument.value,
+        role: 'member',
+        status: 'pending',
+        tier: 'bronze'
+      }, { onConflict: 'id' });
+      if (dbError) {
+        console.error("DB Insert Error", dbError);
+      }
+    }
+
     successMessage.value = "Request sent! Wait for Admin approval.";
     firstName.value = '';
     lastName.value = '';
