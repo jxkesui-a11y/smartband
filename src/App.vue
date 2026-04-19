@@ -145,20 +145,6 @@
     </div>
   </div>
 
-  <!-- Calendar Permission Modal -->
-  <div v-if="showCalendarPermissionModal" class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-    <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-8 md:p-10 shadow-3xl text-center">
-      <div class="text-5xl mb-6"><i class="fa-solid fa-calendar text-[#32D74B]"></i></div>
-      <h3 class="text-2xl font-bold text-white mb-3">Enable Calendar & Reminders</h3>
-      <p class="text-sm text-gray-400 mb-8 leading-relaxed">Allow SmartBand to create event reminders and calendar entries when you RSVP to events. Perfect for keeping track of rehearsals and performances!</p>
-      <div class="flex gap-3 flex-col">
-        <button @click="askCalendarPermission" class="w-full bg-[#32D74B] text-black px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#2bc140] transition-all min-h-[44px]"><i class="fa-solid fa-check mr-2"></i> Enable Calendar</button>
-        <button @click="skipCalendarPermission" class="w-full bg-white/5 text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5 min-h-[44px]">Maybe Later</button>
-      </div>
-      <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You can enable calendar features anytime in settings.</p>
-    </div>
-  </div>
-
   <!-- Notification Denied - Redirect Modal -->
   <div v-if="notificationPermissionDenied && isLoggedIn" class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
     <div class="bg-[#111111] border border-[#FF453A]/20 w-full max-w-md rounded-[44px] p-8 md:p-10 shadow-3xl text-center">
@@ -211,9 +197,7 @@ let heartbeatInterval = null;
 // Push Notifications & Permissions
 const showNotificationPermissionModal = ref(false);
 const notificationPermissionDenied = ref(false);
-const showCalendarPermissionModal = ref(false);
 const notificationPermissionStatus = ref(Notification?.permission || 'default'); // 'default', 'granted', 'denied'
-const calendarPermissionStatus = ref(localStorage.getItem('smartband_calendar_permission') || 'default'); // 'default', 'granted', 'denied'
 const userPermissionsHandled = ref(localStorage.getItem('smartband_permissions_session') === 'true'); // Persist across sessions
 
 // Toasts and Loading states
@@ -397,13 +381,25 @@ const submitRSVP = async (eventId, status, eventObj = null) => {
     let error = null;
 
     if (existingRecord) {
-      // Update existing RSVP
+      // Optimistically update local state immediately to prevent flicker/duplicate
+      const idx = allRSVPs.value.findIndex(r => r.id === existingRecord.id);
+      if (idx !== -1) allRSVPs.value[idx] = { ...existingRecord, status, responded_at: new Date().toISOString() };
+
       const result = await supabase.from('event_rsvps')
         .update({ status: status, responded_at: new Date().toISOString() })
         .eq('id', existingRecord.id);
       error = result.error;
     } else {
-      // Insert new RSVP
+      // Optimistically push a placeholder so the UI updates instantly
+      const tempRecord = {
+        id: `temp-${Date.now()}`,
+        user_id: currentUser.value.id,
+        event_id: eventId,
+        status: status,
+        responded_at: new Date().toISOString()
+      };
+      allRSVPs.value.push(tempRecord);
+
       const result = await supabase.from('event_rsvps').insert({
         user_id: currentUser.value.id,
         event_id: eventId,
@@ -411,28 +407,19 @@ const submitRSVP = async (eventId, status, eventObj = null) => {
         responded_at: new Date().toISOString()
       });
       error = result.error;
+
+      if (!error) {
+        // Replace temp record with real data from DB
+        await loadDashboard();
+      } else {
+        // Roll back on error
+        allRSVPs.value = allRSVPs.value.filter(r => r.id !== tempRecord.id);
+      }
     }
 
     if (!error) {
       showToast('Updated!');
-      
-      // Add to calendar if user marked as "going"
-      if (status === 'going' && eventObj) {
-        if (calendarPermissionStatus.value === 'granted') {
-          // Permission already granted - add to calendar
-          addEventToCalendar(eventObj, status);
-        } else if (calendarPermissionStatus.value === 'default') {
-          // Permission not requested - show modal
-          showCalendarPermissionModal.value = true;
-        }
-        // If denied, silently skip
-      }
-      
-      await loadDashboard();
-      // Ensure roster is loaded for attendees list
-      if (roster.value.length === 0) {
-        await fetchRoster();
-      }
+      if (roster.value.length === 0) await fetchRoster();
     } else {
       showToast('Failed to save RSVP: ' + error.message, 'error');
       console.error('RSVP Error:', error);
@@ -821,12 +808,6 @@ const handleLoginSuccess = (userData) => {
       } else if (currentStatus === 'denied') {
         // Permission was previously denied
         notificationPermissionDenied.value = true;
-      } else if (currentStatus === 'granted') {
-        // Permission already granted - check calendar permission
-        const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
-        if (calendarStatus === 'default') {
-          setTimeout(() => showCalendarPermissionModal.value = true, 300);
-        }
       }
     }, 500);
   }
@@ -844,9 +825,6 @@ const askNotificationPermission = async () => {
     if (permission === 'granted') {
       showNotificationPermissionModal.value = false;
       showToast('✅ Notifications enabled! You\'ll get alerts for urgent messages.', 'success');
-      
-      // Show calendar permission modal next
-      setTimeout(() => showCalendarPermissionModal.value = true, 500);
     } else if (permission === 'denied') {
       notificationPermissionDenied.value = true;
       showNotificationPermissionModal.value = false;
@@ -857,20 +835,7 @@ const askNotificationPermission = async () => {
   }
 };
 
-const askCalendarPermission = async () => {
-  // Browser calendar permission is limited - we can use the Calendar API if available
-  // For now, we'll just acknowledge and set up local calendar integration
-  calendarPermissionStatus.value = 'granted';
-  localStorage.setItem('smartband_calendar_permission', 'granted');
-  showToast('📅 Calendar integration ready! Event reminders will sync.', 'success');
-  showCalendarPermissionModal.value = false;
-};
 
-const skipCalendarPermission = () => {
-  calendarPermissionStatus.value = 'denied';
-  localStorage.setItem('smartband_calendar_permission', 'denied');
-  showCalendarPermissionModal.value = false;
-};
 
 const skipNotificationPermission = () => {
   showNotificationPermissionModal.value = false;
@@ -1061,7 +1026,19 @@ const setupRealtime = () => {
       allAcknowledgments.value.push(payload.new);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_rsvps' }, (payload) => {
-      allRSVPs.value.push(payload.new);
+      // Only add if it's not from the current user (current user's RSVPs are handled optimistically)
+      if (payload.new.user_id !== currentUser.value?.id) {
+        allRSVPs.value.push(payload.new);
+      } else {
+        // Replace temp record if one exists, or update existing by real id
+        const tempIdx = allRSVPs.value.findIndex(r => r.id?.toString().startsWith('temp-') && r.event_id === payload.new.event_id && r.user_id === payload.new.user_id);
+        if (tempIdx !== -1) {
+          allRSVPs.value[tempIdx] = payload.new;
+        } else {
+          const realIdx = allRSVPs.value.findIndex(r => r.id === payload.new.id);
+          if (realIdx === -1) allRSVPs.value.push(payload.new);
+        }
+      }
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'event_rsvps' }, (payload) => {
       const idx = allRSVPs.value.findIndex(r => r.id === payload.new.id);
@@ -1184,11 +1161,6 @@ const handlePermissionLogic = () => {
   
   if (currentStatus === 'default') {
     showNotificationPermissionModal.value = true;
-  } else if (currentStatus === 'granted') {
-    const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
-    if (calendarStatus === 'default') {
-      showCalendarPermissionModal.value = true;
-    }
   }
 };
 
@@ -1277,41 +1249,44 @@ const checkEventReminders = () => {
 
     const timeDiffMinutes = Math.round((eventDate - now) / 60000);
     const rsvpStatus = getUserRSVP(event.id); // 'going', 'not_going', or null
+    const isGoing = rsvpStatus === 'going';
 
-    // --- 5-Minute Warning (alarm + push notification) ---
+    // --- 15-Minute Warning (alarm + push notification — only if user is going) ---
+    const key15 = `${event.id}:15`;
+    if (timeDiffMinutes === 15 && !firedReminderKeys.has(key15)) {
+      firedReminderKeys.add(key15);
+      if (isGoing) playAlarmSound(false);
+      triggerBrowserNotification(
+        `📅 Reminder: ${event.title} in 15 Min`,
+        `${event.time_str} · ${event.location || 'TBA'}${isGoing ? ' · You RSVPd Going' : ''}`
+      );
+      if (isGoing) showToast(`📅 "${event.title}" starts in 15 minutes!`, 'success');
+    }
+
+    // --- 5-Minute Warning (alarm + push notification — alarm only if user is going) ---
     const key5 = `${event.id}:5`;
     if (timeDiffMinutes === 5 && !firedReminderKeys.has(key5)) {
       firedReminderKeys.add(key5);
-      playAlarmSound(false);
+      if (isGoing) playAlarmSound(false);
       const rsvpSuffix = rsvpStatus === 'going' ? ' · You RSVPd Going' : rsvpStatus === 'not_going' ? " · You said Can't Make It" : '';
       triggerBrowserNotification(
         `⏰ Event in 5 Minutes: ${event.title}`,
         `Starting at ${event.time_str} · ${event.location || 'TBA'}${rsvpSuffix}`,
-        false // urgent = false for 5-min warning
+        false
       );
-      // Also show in-app toast so they notice even if the tab is focused
+      // Show in-app toast so they notice even if tab is focused
       showToast(`⏰ "${event.title}" starts in 5 minutes!`, 'success');
     }
 
-    // --- 15-Minute Warning (push only, no alarm) ---
-    const key15 = `${event.id}:15`;
-    if (timeDiffMinutes === 15 && !firedReminderKeys.has(key15)) {
-      firedReminderKeys.add(key15);
-      triggerBrowserNotification(
-        `📅 Reminder: ${event.title} in 15 Min`,
-        `${event.time_str} · ${event.location || 'TBA'}`
-      );
-    }
-
-    // --- Now! (urgent alarm + push notification) ---
+    // --- Now! (urgent alarm + push notification — alarm only if user is going) ---
     const key0 = `${event.id}:0`;
     if (timeDiffMinutes === 0 && !firedReminderKeys.has(key0)) {
       firedReminderKeys.add(key0);
-      playAlarmSound(true); // urgent = faster beeping
+      if (isGoing) playAlarmSound(true); // urgent = faster beeping
       triggerBrowserNotification(
         `🔔 Starting NOW: ${event.title}`,
         `${event.location || 'TBA'} — It\'s time!`,
-        true // urgent = true for starting now
+        true
       );
       showToast(`🔔 "${event.title}" is starting NOW!`, 'success');
     }
