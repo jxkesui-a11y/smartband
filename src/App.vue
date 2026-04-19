@@ -560,8 +560,7 @@ const sendMessage = async () => {
 
   if (!error) {
     newMessageContent.value = '';
-    // Let the real-time listener catch it, but fetch manually just in case
-    fetchMessages();
+    // Realtime listener in setupRealtime() handles adding the message to chatMessages
   } else {
     showToast('Message failed to send', 'error');
     console.error("SUPABASE SEND ERROR:", error);
@@ -724,7 +723,8 @@ const submitPost = async () => {
   const { error } = await supabase.from('feed_posts').insert({
     author_id: currentUser.value.id, title: postForm.value.title, message: postForm.value.message, is_urgent: postForm.value.isUrgent
   });
-  if(!error) { showAddPostModal.value = false; postForm.value = {title: '', message: '', isUrgent: false}; showToast('Posted!'); loadDashboard(); }
+  if(!error) { showAddPostModal.value = false; postForm.value = {title: '', message: '', isUrgent: false}; showToast('Posted!'); }
+  // Realtime INSERT listener in setupRealtime() will add the post to dashboardPosts automatically
   else showToast('Failed to post', 'error');
   isSubmitting.value = false;
 };
@@ -751,7 +751,8 @@ const submitEvent = async () => {
   const { error } = await supabase.from('events').insert({
     author_id: currentUser.value.id, event_date: eventForm.value.date, title: eventForm.value.title, time_str: formattedTimeStr, location: eventForm.value.location
   });
-  if(!error) { showAddEventModal.value = false; eventForm.value = {title: '', date: '', time: '', location: ''}; showToast('Event scheduled!'); loadDashboard(); }
+  if(!error) { showAddEventModal.value = false; eventForm.value = {title: '', date: '', time: '', location: ''}; showToast('Event scheduled!'); }
+  // Realtime INSERT listener in setupRealtime() will add the event to dashboardEvents automatically
   else showToast('Failed to add event', 'error');
   isSubmitting.value = false;
 };
