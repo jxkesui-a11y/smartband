@@ -988,13 +988,21 @@ const handleMessagesClick = () => { activeTab.value = 'messages'; isMessagesExpa
 // --- SUPABASE REALTIME (The Magic that replaces Pusher) ---
 let realtimeChannel;
 
-const triggerBrowserNotification = (title, body) => {
+const triggerBrowserNotification = (title, body, urgent = false) => {
   // Check the actual browser API permission directly, not just our ref
   if (window.Notification && Notification.permission === 'granted') {
     new Notification(title, {
       body: body,
-      icon: '/icon.png'
+      icon: '/pwa-192x192.png',
+      vibrate: urgent ? [200, 100, 200, 100, 200] : [200, 100, 200], // Vibration pattern (ms)
+      tag: 'smartband-notif', // Tags help group/replace old notifications
+      renotify: true, // Forces sound/vibration even if tag is the same
+      silent: false,
+      requireInteraction: urgent // Keeps notification on screen until user acts (if supported)
     });
+    
+    // Fallback: If the tab is focused, the browser might not show a notification
+    // so the playAlarmSound call in the parent will handle the audible part.
   } else {
     console.warn("Notification blocked: Permission is", Notification.permission);
   }
@@ -1273,7 +1281,8 @@ const checkEventReminders = () => {
       const rsvpSuffix = rsvpStatus === 'going' ? ' · You RSVPd Going' : rsvpStatus === 'not_going' ? " · You said Can't Make It" : '';
       triggerBrowserNotification(
         `⏰ Event in 5 Minutes: ${event.title}`,
-        `Starting at ${event.time_str} · ${event.location || 'TBA'}${rsvpSuffix}`
+        `Starting at ${event.time_str} · ${event.location || 'TBA'}${rsvpSuffix}`,
+        false // urgent = false for 5-min warning
       );
       // Also show in-app toast so they notice even if the tab is focused
       showToast(`⏰ "${event.title}" starts in 5 minutes!`, 'success');
@@ -1296,7 +1305,8 @@ const checkEventReminders = () => {
       playAlarmSound(true); // urgent = faster beeping
       triggerBrowserNotification(
         `🔔 Starting NOW: ${event.title}`,
-        `${event.location || 'TBA'} — It\'s time!`
+        `${event.location || 'TBA'} — It\'s time!`,
+        true // urgent = true for starting now
       );
       showToast(`🔔 "${event.title}" is starting NOW!`, 'success');
     }
