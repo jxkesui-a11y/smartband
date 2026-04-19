@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: './', // Keeps your XAMPP subfolder routing intact
+  base: './',
   plugins: [
     vue(),
     VitePWA({
@@ -11,13 +11,33 @@ export default defineConfig({
       devOptions: {
         enabled: true 
       },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 1 day
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          }
+        ]
+      },
       manifest: {
         name: 'SmartBand',
         short_name: 'SmartBand',
+        start_url: '.',
         description: 'Digital management and communication hub for band members.',
         theme_color: '#000000',
         background_color: '#0a0a0a',
-        display: 'standalone', // Hides the browser URL bar!
+        display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
@@ -39,5 +59,15 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['vue', 'pinia', '@supabase/supabase-js']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
+  }
 })

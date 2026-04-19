@@ -64,7 +64,7 @@
         <div>
           <div class="flex justify-between items-end mb-2 ml-1">
             <label class="block text-[0.7rem] font-bold text-gray-400 uppercase tracking-wider">Password</label>
-            <a v-if="isLogin" href="#" class="text-[0.7rem] font-bold text-[#F5C518] hover:text-white transition-colors">Forgot?</a>
+            <a v-if="isLogin" href="#" @click.prevent="handleResetPassword" class="text-[0.7rem] font-bold text-[#F5C518] hover:text-white transition-colors">Forgot?</a>
           </div>
           <div class="relative">
             <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
@@ -143,6 +143,25 @@ const isPasswordStrong = computed(() => {
          passwordReqs.value.hasSpecial;
 });
 
+const handleResetPassword = async () => {
+  errorMessage.value = '';
+  successMessage.value = '';
+  if (!email.value) {
+    errorMessage.value = 'Please enter your email address first.';
+    return;
+  }
+  isSubmitting.value = true;
+  const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+  if (error) {
+    errorMessage.value = error.message;
+  } else {
+    successMessage.value = 'Password reset link sent! Check your email.';
+  }
+  isSubmitting.value = false;
+};
+
 const handleAuth = async () => {
   errorMessage.value = '';
   successMessage.value = '';
@@ -188,43 +207,31 @@ const handleAuth = async () => {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email.value,
       password: password.value,
+      options: {
+        data: {
+          first_name: firstName.value,
+          last_name: lastName.value,
+          instrument: instrument.value
+        }
+      }
     });
 
     if (authError) {
-      errorMessage.value = authError.message;
+      if (authError.message.includes('already registered')) {
+        errorMessage.value = "Email already exists in records.";
+      } else {
+        errorMessage.value = authError.message;
+      }
       isSubmitting.value = false;
       return;
     }
 
-    // Insert their custom data into your public.users table
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-        first_name: firstName.value,
-        last_name: lastName.value,
-        email: email.value,
-        password: 'supabase_managed', // We don't need manual passwords anymore!
-        instrument: instrument.value,
-        status: 'pending',
-        role: 'member',
-        tier: 'junior'
-      });
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        errorMessage.value = "Email already exists in records.";
-      } else {
-        errorMessage.value = insertError.message;
-        console.error("DB Insert Error:", insertError);
-      }
-    } else {
-      successMessage.value = "Request sent! Wait for Admin approval.";
-      firstName.value = '';
-      lastName.value = '';
-      email.value = '';
-      password.value = '';
-      instrument.value = '';
-    }
+    successMessage.value = "Request sent! Wait for Admin approval.";
+    firstName.value = '';
+    lastName.value = '';
+    email.value = '';
+    password.value = '';
+    instrument.value = '';
   }
   
   isSubmitting.value = false;

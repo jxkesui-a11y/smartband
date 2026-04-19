@@ -83,184 +83,11 @@
 
       <div class="relative z-0 p-4 md:p-8 overflow-y-auto h-full scrollbar-hide">
 
-        <div v-if="activeTab === 'dashboard'" class="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] xl:grid-cols-[1.5fr_1fr] gap-6 md:gap-8">
-            <section>
-              <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-white uppercase tracking-widest"><i class="fa-solid fa-bullhorn text-gray-500 mr-2"></i> Band Feed</h2>
-                <button v-if="canManageDashboard" @click="showAddPostModal = true" class="text-[10px] bg-[#F5C518] text-black px-4 py-2 font-bold uppercase rounded-lg hover:scale-105 transition-transform"><i class="fa-solid fa-plus mr-1"></i> Add Post</button>
-              </div>
-              <div v-for="noti in dashboardPosts" :key="noti.id" class="p-4 md:p-6 rounded-2xl border mb-4 bg-[#111111] relative group flex flex-col" :class="noti.is_urgent ? 'border-[#4a1c1c] bg-[#1a0f0f]' : 'border-white/5'">
-                <button v-if="canManageDashboard" @click="deletePost(noti.id)" class="absolute top-4 right-4 text-gray-600 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity min-w-[44px] min-h-[44px] flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>
-                <div class="flex justify-between items-center mb-4"><span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">{{ formatDate(noti.created_at) }} - By {{ noti.users?.first_name }}</span></div>
-                <h3 class="font-bold text-white text-base md:text-lg mb-2">{{ noti.title }}</h3>
-                <p class="text-xs md:text-sm text-gray-400 leading-relaxed break-words flex-1">{{ noti.message }}</p>
-
-                <div v-if="noti.is_urgent" class="mt-5 pt-4 border-t border-white/5 flex justify-between items-center">
-                  <button v-if="!hasAcknowledged(noti.id)" @click="acknowledgePost(noti.id)" class="bg-[#32D74B]/10 text-[#32D74B] border border-[#32D74B]/20 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#32D74B]/20 transition-all">
-                    <i class="fa-solid fa-check mr-1"></i> Acknowledge
-                  </button>
-                  <span v-else class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                    <i class="fa-solid fa-check-double text-[#32D74B] mr-1"></i> Acknowledged
-                  </span>
-                  <span v-if="canManageDashboard" class="text-[10px] text-[#F5C518] uppercase tracking-widest font-bold">
-                    <i class="fa-solid fa-eye mr-1"></i> {{ getAckCount(noti.id) }} Views
-                  </span>
-                </div>
-              </div>
-              <div v-if="dashboardPosts.length === 0" class="text-gray-600 text-sm italic">No active announcements.</div>
-            </section>
-            <section>
-              <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-white uppercase tracking-widest"><i class="fa-regular fa-calendar text-gray-500 mr-2"></i> Roadmap</h2>
-                <button v-if="canManageDashboard" @click="showAddEventModal = true" class="text-[10px] bg-white/10 text-white px-4 py-2 font-bold uppercase rounded-lg hover:bg-white/20 hover:scale-105 transition-transform"><i class="fa-solid fa-calendar-plus mr-1"></i> Add Event</button>
-              </div>
-              <div v-for="event in dashboardEvents" :key="event.id" class="bg-[#111111] p-4 md:p-5 rounded-2xl border border-white/5 flex flex-col mb-4 relative group">
-                <button v-if="canManageDashboard" @click="deleteEvent(event.id)" class="absolute top-2 right-3 text-gray-600 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity min-w-[44px] min-h-[44px] flex items-center justify-center"><i class="fa-solid fa-times"></i></button>
-                
-                <div class="flex items-center gap-4 md:gap-5">
-                  <div class="w-14 h-14 md:w-16 md:h-16 bg-black/50 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-[#F5C518] shrink-0">
-                     <span class="text-[8px] md:text-[10px] font-bold uppercase opacity-60">{{ formatMonth(event.event_date) }}</span>
-                     <span class="text-xl md:text-2xl font-bold text-white leading-tight">{{ formatDay(event.event_date) }}</span>
-                  </div>
-                  <div>
-                    <h4 class="font-bold text-white text-sm md:text-base break-words">{{ event.title }}</h4>
-                    <p class="text-[9px] md:text-[11px] text-gray-500 uppercase tracking-wider mt-1">{{ event.time_str }} | {{ event.location }}</p>
-                  </div>
-                </div>
-
-                <div class="mt-4 pt-3 border-t border-white/5 flex flex-col gap-3 w-full">
-                  <div class="flex gap-2">
-                    <button @click="submitRSVP(event.id, 'going', event)" :class="getUserRSVP(event.id) === 'going' ? 'bg-[#32D74B] text-black' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
-                      <i class="fa-solid fa-thumbs-up mr-1"></i> Going
-                    </button>
-                    <button @click="submitRSVP(event.id, 'not_going', event)" :class="getUserRSVP(event.id) === 'not_going' ? 'bg-[#FF453A] text-white' : 'bg-white/5 text-white hover:bg-white/10'" class="flex-1 py-2.5 rounded-xl text-[10px] uppercase font-bold transition-all border border-white/5">
-                      <i class="fa-solid fa-thumbs-down mr-1"></i> Can't Make It
-                    </button>
-                  </div>
-                  <div class="flex justify-between text-[10px] text-gray-500 uppercase font-bold px-1">
-                    <span class="text-[#32D74B] cursor-pointer hover:text-white transition-colors" @click="toggleAttendeesList(event.id)">
-                      <i :class="expandedEventId === event.id ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" class="mr-1"></i>
-                      {{ getRSVPStats(event.id).going }} Going
-                    </span>
-                    <span class="text-[#FF453A] cursor-pointer hover:text-white transition-colors" @click="toggleAttendeesList(event.id)">
-                      {{ getRSVPStats(event.id).notGoing }} Not Going
-                      <i :class="expandedEventId === event.id ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'" class="ml-1"></i>
-                    </span>
-                  </div>
-
-                  <div v-if="expandedEventId === event.id" class="mt-3 pt-3 border-t border-white/10 flex flex-col gap-4 animate-in slide-in-from-top-2">
-                    <div v-if="getAttendeesList(event.id).goingList.length > 0" class="flex flex-col gap-2">
-                      <p class="text-[10px] font-bold uppercase text-[#32D74B] tracking-widest">Going ({{ getAttendeesList(event.id).goingList.length }})</p>
-                      <div class="flex flex-wrap gap-2">
-                        <span v-for="(attendee, idx) in getAttendeesList(event.id).goingList" :key="'going-' + idx" class="bg-[#32D74B]/10 text-[#32D74B] px-3 py-1.5 rounded-lg text-[9px] font-bold border border-[#32D74B]/20">
-                          {{ attendee }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div v-if="getAttendeesList(event.id).notGoingList.length > 0" class="flex flex-col gap-2">
-                      <p class="text-[10px] font-bold uppercase text-[#FF453A] tracking-widest">Can't Make It ({{ getAttendeesList(event.id).notGoingList.length }})</p>
-                      <div class="flex flex-wrap gap-2">
-                        <span v-for="(attendee, idx) in getAttendeesList(event.id).notGoingList" :key="'notgoing-' + idx" class="bg-[#FF453A]/10 text-[#FF453A] px-3 py-1.5 rounded-lg text-[9px] font-bold border border-[#FF453A]/20">
-                          {{ attendee }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div v-if="getAttendeesList(event.id).goingList.length === 0 && getAttendeesList(event.id).notGoingList.length === 0" class="text-[10px] text-gray-500 italic text-center py-2">
-                      No RSVPs yet
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-if="dashboardEvents.length === 0" class="text-gray-600 text-sm italic">No upcoming events scheduled.</div>
-            </section>
-        </div>
-
-        <div v-else-if="activeTab === 'messages'" class="flex flex-col bg-[#111111] rounded-[32px] p-4 md:p-6 border border-white/5 h-[calc(100vh-10rem)] md:h-[600px] shadow-inner relative">
-          <div id="chatBox" class="flex-1 overflow-y-auto mb-4 flex flex-col gap-4 p-2 md:p-4 scroll-smooth">
-            <div v-for="msg in chatMessages" :key="msg.id" class="max-w-[85%] md:max-w-[80%] p-3 md:p-4 rounded-[22px]" :class="msg.sender_id == currentUser.id ? 'bg-[#F5C518] text-black self-end rounded-tr-none' : 'bg-white/5 text-white self-start rounded-tl-none'">
-              <p v-if="msg.sender_id != currentUser.id" class="text-[9px] font-bold uppercase opacity-50 mb-1">{{ msg.first_name }} {{ msg.last_name }}</p>
-              <p class="text-sm leading-relaxed break-words">{{ msg.content }}</p>
-              <p class="text-[8px] mt-1 opacity-40 text-right">{{ new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
-            </div>
-          </div>
-          <div class="flex gap-2 md:gap-3 border-t border-white/5 pt-4">
-            <input v-model="newMessageContent" @keyup.enter="sendMessage" type="text" maxlength="500" :placeholder="'Message #' + selectedChannel" class="flex-1 bg-black border border-white/10 rounded-2xl px-4 md:px-6 py-3 md:py-4 text-sm outline-none focus:border-[#F5C518] transition-all shadow-inner disabled:opacity-50" :disabled="isSubmitting">
-            <button @click="sendMessage" :disabled="isSubmitting" class="bg-[#F5C518] text-black px-6 md:px-10 rounded-2xl font-bold transition-all hover:bg-[#d4a914] disabled:opacity-50 min-h-[44px]"><i class="fa-solid" :class="isSubmitting ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i></button>
-          </div>
-        </div>
-
-        <div v-else-if="activeTab === 'music'" class="flex flex-col gap-8">
-           <h2 class="text-xl font-bold text-white uppercase tracking-widest mb-4">Score Repository</h2>
-           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-             <div v-for="sheet in filteredSheets" :key="sheet.id" class="bg-[#111111] p-6 md:p-7 rounded-[28px] border border-white/5 flex items-center gap-4 md:gap-6">
-                <div class="flex-1 text-left min-w-0"><h4 class="font-bold text-white text-base md:text-lg truncate">{{ sheet.title }}</h4><p class="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em] mt-2">{{ sheet.instrument }}</p></div>
-                <a :href="sheet.file_path" target="_blank" class="text-xl text-[#F5C518] hover:scale-110 transition-transform p-2"><i class="fa-solid fa-download"></i></a>
-             </div>
-           </div>
-        </div>
-
-        <div v-else-if="activeTab === 'roster'" class="bg-[#111111] border border-white/5 rounded-[32px] overflow-hidden shadow-3xl overflow-x-auto">
-          <table class="w-full text-left text-sm whitespace-nowrap">
-            <thead class="bg-white/5 text-gray-500 uppercase text-[10px] font-bold tracking-[0.2em]">
-              <tr>
-                <th class="px-4 md:px-8 py-4 md:py-5">Name</th>
-                <th class="px-4 md:px-8 py-4 md:py-5 hidden md:table-cell">Position</th>
-                <th class="px-4 md:px-8 py-4 md:py-5 hidden md:table-cell">Instrument</th>
-                <th class="px-4 md:px-8 py-4 md:py-5">Status</th>
-                <th v-if="currentUser?.role === 'admin'" class="px-4 md:px-8 py-4 md:py-5 text-right pr-6 md:pr-12">Action</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/5">
-              <tr v-for="user in roster" :key="user.id" class="hover:bg-white/[0.02] transition-colors">
-                <td class="px-4 md:px-8 py-4 md:py-6 font-bold text-white">
-                  {{ user.first_name }} {{ user.last_name }}
-                  <div class="md:hidden text-[10px] text-gray-500 mt-1 uppercase">{{ user.role }} • <span class="text-[#F5C518]">{{ user.instrument }}</span></div>
-                </td>
-                <td class="px-4 md:px-8 py-4 md:py-6 capitalize hidden md:table-cell"><span class="bg-white/5 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-white/5 uppercase text-gray-300">{{ user.role }}</span></td>
-                <td class="px-4 md:px-8 py-4 md:py-6 text-[#F5C518] font-bold uppercase tracking-tighter hidden md:table-cell">{{ user.instrument }}</td>
-                <td class="px-4 md:px-8 py-4 md:py-6"><div class="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest" :class="isOnline(user.last_seen) ? 'text-green-500' : 'text-gray-500'"><span class="w-2 h-2 rounded-full shrink-0" :class="isOnline(user.last_seen) ? 'bg-green-500' : 'bg-gray-600'"></span><span class="truncate max-w-[80px] md:max-w-none">{{ isOnline(user.last_seen) ? 'Online' : 'Offline' }}</span></div></td>
-                <td v-if="currentUser?.role === 'admin'" class="px-4 md:px-8 py-4 md:py-6 text-right pr-6 md:pr-12 flex justify-end gap-2">
-                  <button @click="openEditModal(user)" class="text-[10px] font-bold bg-white/5 px-3 py-2 md:px-4 rounded-xl uppercase hover:bg-[#F5C518] hover:text-black transition-all border border-white/5 min-h-[44px]">Edit</button>
-                  <button v-if="user.id !== currentUser.id" @click="deleteUser(user.id)" class="text-[10px] font-bold bg-white/5 px-3 py-2 md:px-4 rounded-xl uppercase hover:bg-red-500 hover:text-white transition-all border border-white/5 min-h-[44px]"><i class="fa-solid fa-trash"></i></button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-else-if="activeTab === 'requests'" class="max-w-4xl mx-auto flex flex-col gap-6 animate-in slide-in-from-top-4 duration-500">
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="text-xl font-bold flex items-center gap-3"><i class="fa-solid fa-user-shield text-[#F5C518]"></i> Queue</h2>
-    <div class="bg-[#FF453A]/10 text-[#FF453A] px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border border-[#FF453A]/20">{{ pendingUsers.length }}</div>
-  </div>
-  
-  <div v-if="pendingUsers.length === 0" class="text-center py-24 text-gray-700 italic flex flex-col items-center">
-    <i class="fa-solid fa-check-circle text-6xl mb-6 opacity-5"></i>
-    <p class="text-lg">All members verified.</p>
-  </div>
-  
-  <div v-for="user in pendingUsers" :key="user.id" class="bg-[#111111] border border-white/5 rounded-[32px] p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
-    
-    <div class="flex items-center gap-4 md:gap-6">
-      <div>
-        <h3 class="font-bold text-white text-lg md:text-xl">{{ user.first_name }} {{ user.last_name }}</h3>
-        <p class="text-[11px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">{{ user.instrument }} Request</p>
-      </div>
-    </div>
-    
-    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-      <button @click="declineUser(user.id)" class="bg-[#FF453A]/10 text-[#FF453A] border border-[#FF453A]/20 px-6 md:px-8 py-3 md:py-4 rounded-[22px] text-xs font-bold uppercase tracking-widest hover:bg-[#FF453A]/20 transition-colors min-h-[44px]">
-        Decline
-      </button>
-      <button @click="approveUser(user.id)" class="bg-[#32D74B] text-black px-8 md:px-12 py-3 md:py-4 rounded-[22px] text-xs font-bold uppercase tracking-widest hover:bg-[#28b33e] transition-colors min-h-[44px]">
-        Grant Access
-      </button>
-    </div>
-
-  </div>
-</div>
+        <router-view v-slot="{ Component }">
+          <keep-alive>
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
 
       </div>
     </main>
@@ -308,11 +135,11 @@
       <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 max-h-[90vh] overflow-y-auto">
         <h3 class="text-xl font-bold mb-4">New Event</h3>
         <input v-model="eventForm.title" maxlength="100" placeholder="Event Name" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
-        <input type="date" v-model="eventForm.date" :min="getTodayDateString()" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]" @change="validateEventDate">
-        <p v-if="eventForm.date && new Date(eventForm.date) < new Date(getTodayDateString())" class="text-[#FF453A] text-[10px] mb-2">❌ Cannot schedule events in the past</p>
-        <input v-model="eventForm.time" maxlength="50" placeholder="Time (e.g. 6:00 AM)" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
+        <input type="date" v-model="eventForm.date" :min="getTodayDateString()" style="color-scheme: dark;" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518] cursor-pointer" @change="validateEventDate">
+        <input type="time" v-model="eventForm.time" required style="color-scheme: dark;" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518] cursor-pointer">
+        <p v-if="isEventDateInvalid" class="text-[#FF453A] text-[10px] mb-2">❌ Cannot schedule events in the past</p>
         <input v-model="eventForm.location" maxlength="150" placeholder="Location" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-6 text-sm text-white outline-none focus:border-[#F5C518]">
-        <div class="flex gap-3 md:gap-4"><button @click="showAddEventModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitEvent" :disabled="isSubmitting || !eventForm.date || new Date(eventForm.date) < new Date(getTodayDateString())" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Add</button></div>
+        <div class="flex gap-3 md:gap-4"><button @click="showAddEventModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitEvent" :disabled="isSubmitting || !eventForm.date || !eventForm.time || isEventDateInvalid" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Add</button></div>
       </div>
     </div>
 
@@ -359,7 +186,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+
 import Login from './components/Login.vue';
 import { supabase } from './supabase'; 
 
@@ -367,7 +196,11 @@ import { supabase } from './supabase';
 const storedUser = localStorage.getItem('smartband_user');
 const currentUser = ref(storedUser ? JSON.parse(storedUser) : null);
 const isLoggedIn = ref(!!currentUser.value); 
-const activeTab = ref('dashboard');
+const router = useRouter();
+const route = useRoute();
+const activeTab = computed({ get: () => route.name || 'dashboard', set: (val) => router.push({ name: val }) });
+
+
 const selectedChannel = ref('general');
 const isMessagesExpanded = ref(true);
 let heartbeatInterval = null; 
@@ -403,6 +236,13 @@ const expandedEventId = ref(null);
 const myProfileForm = ref({ firstName: '', lastName: '', instrument: '' });
 const postForm = ref({ title: '', message: '', isUrgent: false });
 const eventForm = ref({ title: '', date: '', time: '', location: '' });
+
+const isEventDateInvalid = computed(() => {
+  if (!eventForm.value.date || !eventForm.value.time) return false; // Let the required fields validation handle this
+  const today = new Date();
+  const selectedDate = new Date(`${eventForm.value.date}T${eventForm.value.time}`);
+  return selectedDate < today;
+});
 
 // Data
 const chatMessages = ref([]);
@@ -476,16 +316,20 @@ const allRSVPs = ref([]);
 
 // Fetch them when loading the dashboard
 const loadDashboard = async () => {
-  const { data: posts } = await supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false });
-  const { data: events } = await supabase.from('events').select('*').order('event_date', { ascending: true });
-  
-  // Fetch Tracking Data
-  const { data: acks } = await supabase.from('post_acknowledgments').select('*');
+  const [
+    { data: posts },
+    { data: events },
+    { data: acks },
+    { data: rsvps }
+  ] = await Promise.all([
+    supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false }),
+    supabase.from('events').select('*').order('event_date', { ascending: true }),
+    supabase.from('post_acknowledgments').select('*'),
+    supabase.from('event_rsvps').select('*')
+  ]);
+
   if (acks) allAcknowledgments.value = acks;
-
-  const { data: rsvps } = await supabase.from('event_rsvps').select('*');
   if (rsvps) allRSVPs.value = rsvps;
-
   if (posts) dashboardPosts.value = posts;
   if (events) dashboardEvents.value = events;
 };
@@ -610,7 +454,11 @@ const fetchMessages = async () => {
     .order('created_at', { ascending: true });
     
   if (data) {
-    chatMessages.value = data;
+    chatMessages.value = data.map(msg => ({
+      ...msg,
+      first_name: msg.users?.first_name,
+      last_name: msg.users?.last_name
+    }));
     // Clear unread for this channel when viewing it
     unreadMessages.value[selectedChannel.value] = 0;
     await nextTick();
@@ -803,11 +651,19 @@ const deletePost = async (id) => {
 };
 
 const submitEvent = async () => {
-  if (isSubmitting.value) return;
+  if (isSubmitting.value || isEventDateInvalid.value) return;
   if (!eventForm.value.title.trim() || !eventForm.value.date || !eventForm.value.time.trim() || !eventForm.value.location.trim()) { showToast('All event fields required', 'error'); return; }
   isSubmitting.value = true;
+  
+  // Format the time to 12-hour AM/PM for standard display
+  const [hours, minutes] = eventForm.value.time.split(':');
+  const parsedHour = parseInt(hours);
+  const ampm = parsedHour >= 12 ? 'PM' : 'AM';
+  const displayHour = parsedHour % 12 || 12;
+  const formattedTimeStr = `${displayHour}:${minutes} ${ampm}`;
+
   const { error } = await supabase.from('events').insert({
-    author_id: currentUser.value.id, event_date: eventForm.value.date, title: eventForm.value.title, time_str: eventForm.value.time, location: eventForm.value.location
+    author_id: currentUser.value.id, event_date: eventForm.value.date, title: eventForm.value.title, time_str: formattedTimeStr, location: eventForm.value.location
   });
   if(!error) { showAddEventModal.value = false; eventForm.value = {title: '', date: '', time: '', location: ''}; showToast('Event scheduled!'); loadDashboard(); }
   else showToast('Failed to add event', 'error');
@@ -1083,7 +939,13 @@ const setupRealtime = () => {
       console.log("NEW MESSAGE RECEIVED:", payload); // Debug log
       
       if (activeTab.value === 'messages' && selectedChannel.value === payload.new.channel) {
-        fetchMessages();
+        const sender = roster.value.find(u => u.id === payload.new.sender_id) || currentUser.value;
+        chatMessages.value.push({
+          ...payload.new,
+          first_name: sender.first_name,
+          last_name: sender.last_name
+        });
+        scrollToBottom();
       } else {
         unreadMessages.value[payload.new.channel]++;
       }
@@ -1096,17 +958,33 @@ const setupRealtime = () => {
       if (activeTab.value === 'roster') fetchRoster();
       if (activeTab.value === 'requests' && currentUser.value?.role === 'admin') fetchPendingUsers();
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_posts' }, () => {
-      if (activeTab.value === 'dashboard') loadDashboard();
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, (payload) => {
+      if (activeTab.value === 'dashboard') {
+        const sender = roster.value.find(u => u.id === payload.new.author_id) || currentUser.value;
+        dashboardPosts.value.unshift({ ...payload.new, users: { first_name: sender.first_name, last_name: sender.last_name } });
+      }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
-      if (activeTab.value === 'dashboard') loadDashboard();
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'feed_posts' }, (payload) => {
+      if (activeTab.value === 'dashboard') dashboardPosts.value = dashboardPosts.value.filter(p => p.id !== payload.old.id);
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'post_acknowledgments' }, () => {
-      if (activeTab.value === 'dashboard') loadDashboard(); 
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, (payload) => {
+      if (activeTab.value === 'dashboard') {
+        dashboardEvents.value.push(payload.new);
+        dashboardEvents.value.sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+      }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'event_rsvps' }, () => {
-      if (activeTab.value === 'dashboard') loadDashboard();
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'events' }, (payload) => {
+      if (activeTab.value === 'dashboard') dashboardEvents.value = dashboardEvents.value.filter(e => e.id !== payload.old.id);
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_acknowledgments' }, (payload) => {
+      allAcknowledgments.value.push(payload.new);
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_rsvps' }, (payload) => {
+      allRSVPs.value.push(payload.new);
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'event_rsvps' }, (payload) => {
+      const idx = allRSVPs.value.findIndex(r => r.id === payload.new.id);
+      if (idx !== -1) allRSVPs.value[idx] = payload.new;
     })
     .subscribe((status) => {
       console.log("Realtime status:", status); // This should say 'SUBSCRIBED'
@@ -1131,6 +1009,45 @@ const setupNotifications = async () => {
     await Notification.requestPermission();
   }
 };
+
+const uploadSheet = async (file, title, instrumentStr) => {
+  if (!file) return;
+  isSubmitting.value = true;
+  
+  const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  
+  try {
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('sheets')
+      .upload(fileName, file);
+      
+    if (uploadError) throw uploadError;
+    
+    const { data: urlData } = supabase.storage.from('sheets').getPublicUrl(fileName);
+    
+    const { error: dbError } = await supabase.from('music_sheets').insert({
+      title: title,
+      instrument: instrumentStr,
+      file_path: urlData.publicUrl
+    });
+    
+    if (dbError) throw dbError;
+    
+    showToast('Sheet uploaded successfully!');
+    fetchMusicSheets();
+  } catch (err) {
+    showToast('Upload failed: ' + err.message, 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+provide('smartband', {
+  dashboardPosts, dashboardEvents, canManageDashboard, showAddPostModal, deletePost, formatDate, hasAcknowledged, acknowledgePost, getAckCount, showAddEventModal, deleteEvent, formatMonth, formatDay, submitRSVP, getUserRSVP, getRSVPStats, toggleAttendeesList, expandedEventId, getAttendeesList,
+  chatMessages, newMessageContent, sendMessage, isSubmitting, selectedChannel, currentUser,
+  filteredSheets, uploadSheet,
+  roster, isOnline, openEditModal, deleteUser,
+  pendingUsers, declineUser, approveUser
+});
 
 onMounted(() => {
   window.addEventListener('keydown', handleEscKey); 
@@ -1197,16 +1114,34 @@ const checkEventReminders = () => {
   if (Notification.permission !== 'granted') return;
 
   const now = new Date();
-  // Normalize everything to uppercase and trim spaces
-  const currentTime = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase().trim();
   const currentDate = now.toISOString().split('T')[0];
 
   dashboardEvents.value.forEach(event => {
     const isGoing = getUserRSVP(event.id) === 'going';
-    const eventTime = event.time_str?.toUpperCase().trim();
+    if (!isGoing || event.event_date !== currentDate || !event.time_str) return;
 
-    if (isGoing && event.event_date === currentDate && eventTime === currentTime) {
-      triggerBrowserNotification("Event Starting Now!", `${event.title} at ${event.location}`);
+    // Parse event.time_str (e.g., "2:30 PM") into a Date object for today
+    const timeParts = event.time_str.split(' ');
+    if(timeParts.length < 2) return;
+    
+    const [hours, minutes] = timeParts[0].split(':');
+    const period = timeParts[1].toUpperCase();
+    
+    let eventHours = parseInt(hours);
+    if (period === 'PM' && eventHours !== 12) eventHours += 12;
+    if (period === 'AM' && eventHours === 12) eventHours = 0;
+
+    const eventDate = new Date();
+    eventDate.setHours(eventHours, parseInt(minutes), 0, 0);
+
+    // Calculate difference in minutes
+    const timeDiffMinutes = Math.round((eventDate - now) / 60000);
+
+    // Trigger exactly at 15 minutes before, and exactly at 0 minutes.
+    if (timeDiffMinutes === 15) {
+      triggerBrowserNotification("Upcoming Event in 15 Min!", `${event.title} is starting soon at ${event.location || 'TBA'}`);
+    } else if (timeDiffMinutes === 0) {
+      triggerBrowserNotification("Event Starting Now!", `${event.title} is starting at ${event.location || 'TBA'}`);
     }
   });
 };
