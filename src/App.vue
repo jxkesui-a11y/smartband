@@ -321,7 +321,7 @@ const filteredTabs = computed(() => {
   const tabs = [
     { id: 'dashboard', name: 'Dashboard', icon: 'fa-solid fa-border-all' },
     { id: 'messages', name: 'Messages', icon: 'fa-regular fa-message' }, 
-    { id: 'music', name: 'Music Library', icon: 'fa-solid fa-sheet-music' },
+    // { id: 'music', name: 'Music Library', icon: 'fa-solid fa-sheet-music' },
     { id: 'roster', name: 'Band Roster', icon: 'fa-solid fa-users' },
     { id: 'requests', name: 'Requests', icon: 'fa-solid fa-user-shield', adminOnly: true }
   ];
@@ -1142,7 +1142,7 @@ onMounted(() => {
     
     loadDashboard(); 
     fetchRoster(); 
-    fetchMusicSheets();
+    // fetchMusicSheets();
     
     if (canManageDashboard.value) fetchPendingUsers();
     
@@ -1189,7 +1189,7 @@ watch([activeTab, selectedChannel], ([tab, channel]) => {
   if (tab === 'messages') fetchMessages(); 
   if (tab === 'roster') fetchRoster();
   if (tab === 'dashboard') loadDashboard();
-  if (tab === 'music') fetchMusicSheets();
+  // if (tab === 'music') fetchMusicSheets();
   if (tab === 'requests' && canManageDashboard.value) fetchPendingUsers();
 }, { immediate: true });
 
