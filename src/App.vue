@@ -186,6 +186,8 @@
       <button @click="() => { isLoggedIn = false; notificationPermissionDenied = false; handleLogout(); }" class="w-full bg-[#FF453A] text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#ff5a47] transition-all min-h-[44px]"><i class="fa-solid fa-arrow-left mr-2"></i> Return to Login</button>
       <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You'll be asked again after login.</p>
     </div>
+  </div>
+
   <!-- Custom Confirm Modal -->
   <div v-if="confirmModal.show" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
     <div class="bg-[#111111] border border-[#FF453A]/20 w-full max-w-sm rounded-[32px] p-8 shadow-3xl text-center">
