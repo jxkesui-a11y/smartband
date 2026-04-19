@@ -227,8 +227,7 @@ const handleAuth = async () => {
     }
 
     if (authData?.user) {
-      const { error: dbError } = await supabase.from('users').upsert({
-        id: authData.user.id,
+      const { error: dbError } = await supabase.from('users').insert({
         email: email.value,
         first_name: firstName.value,
         last_name: lastName.value,
@@ -236,9 +235,13 @@ const handleAuth = async () => {
         role: 'member',
         status: 'pending',
         tier: 'junior'
-      }, { onConflict: 'id' });
+      });
+      
       if (dbError) {
         console.error("DB Insert Error", dbError);
+        errorMessage.value = "Registration failed: " + dbError.message;
+        isSubmitting.value = false;
+        return;
       }
     }
 
