@@ -968,12 +968,14 @@ const setupRealtime = () => {
   realtimeChannel = supabase.channel('smartband-sync')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
       
+      const sender = roster.value.find(u => u.id === payload.new.sender_id);
+      const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Someone';
+
       if (activeTab.value === 'messages' && selectedChannel.value === payload.new.channel) {
-        const sender = roster.value.find(u => u.id === payload.new.sender_id) || currentUser.value;
         chatMessages.value.push({
           ...payload.new,
-          first_name: sender.first_name,
-          last_name: sender.last_name
+          first_name: sender ? sender.first_name : 'User',
+          last_name: sender ? sender.last_name : ''
         });
         scrollToBottom();
       } else {
@@ -981,7 +983,7 @@ const setupRealtime = () => {
       }
 
       if (payload.new.sender_id !== currentUser.value.id) {
-        triggerBrowserNotification(`New Message in #${payload.new.channel}`, payload.new.content);
+        triggerBrowserNotification(`${senderName} in #${payload.new.channel}`, payload.new.content);
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
