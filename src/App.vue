@@ -1063,21 +1063,22 @@ const handleMessagesClick = () => { activeTab.value = 'messages'; isMessagesExpa
 // --- SUPABASE REALTIME (The Magic that replaces Pusher) ---
 let realtimeChannel;
 
+const triggerBrowserNotification = (title, body) => {
+  if (notificationPermissionStatus.value === 'granted') {
+    new Notification(title, {
+      body: body,
+      icon: '/icon.png' // Make sure you have an icon in your public folder
+    });
+  }
+};
+
 const setupRealtime = () => {
   realtimeChannel = supabase.channel('smartband-sync')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-      if (activeTab.value === 'messages') {
-        if (payload.new?.channel === selectedChannel.value) {
-          fetchMessages();
-        } else if (payload.new?.channel) {
-          // Increment unread for other channels
-          unreadMessages.value[payload.new.channel]++;
-        }
-      } else {
-        // If not on messages tab, increment unread
-        if (payload.new?.channel) {
-          unreadMessages.value[payload.new.channel]++;
-        }
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, (payload) => {
+      if (activeTab.value === 'dashboard') loadDashboard();
+      // Trigger notification for urgent posts
+      if (payload.new.is_urgent && payload.new.author_id !== currentUser.value.id) {
+        triggerBrowserNotification('Urgent Band Announcement!', payload.new.title);
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -1088,6 +1089,12 @@ const setupRealtime = () => {
       if (activeTab.value === 'dashboard') loadDashboard();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
+      if (activeTab.value === 'dashboard') loadDashboard();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'post_acknowledgments' }, () => {
+      if (activeTab.value === 'dashboard') loadDashboard(); 
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'event_rsvps' }, () => {
       if (activeTab.value === 'dashboard') loadDashboard();
     })
     .subscribe();
