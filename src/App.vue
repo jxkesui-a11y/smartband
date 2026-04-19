@@ -496,7 +496,10 @@ const fetchMessages = async () => {
 
 const fetchRoster = async () => {
   try {
-    const { data, error } = await supabase.from('users').select('*').eq('status', 'approved').order('role', { ascending: true });
+    const { data, error } = await supabase.from('users')
+      .select('id, first_name, last_name, email, instrument, status, role, tier, last_seen, created_at')
+      .eq('status', 'approved')
+      .order('role', { ascending: true });
     if (error) throw error;
     if (data) roster.value = data;
   } catch (err) {
@@ -512,7 +515,9 @@ const fetchMusicSheets = async () => {
 
 const fetchPendingUsers = async () => {
   try {
-    const { data, error } = await supabase.from('users').select('*').eq('status', 'pending');
+    const { data, error } = await supabase.from('users')
+      .select('id, first_name, last_name, email, instrument, status, role, tier, last_seen, created_at')
+      .eq('status', 'pending');
     if (error) throw error;
     if (data) {
       if (data.length > pendingUsers.value.length && !isInitialLoad) {

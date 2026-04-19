@@ -185,7 +185,7 @@ const handleAuth = async () => {
     // Fetch the user's details from your public.users table
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, first_name, last_name, email, instrument, status, role, tier, last_seen, created_at')
       .eq('email', email.value)
       .single();
 
@@ -234,7 +234,6 @@ const handleAuth = async () => {
         first_name: firstName.value,
         last_name: lastName.value,
         instrument: instrument.value,
-        password: password.value, // Added to match schema in screenshot
         role: 'member',
         status: 'pending',
         tier: 'junior'
