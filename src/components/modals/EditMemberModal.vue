@@ -3,6 +3,10 @@
     <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 shadow-3xl text-left max-h-[90vh] overflow-y-auto">
       <h3 class="text-xl md:text-2xl font-bold mb-6">Manage Member</h3>
       <div class="flex flex-col gap-4 md:gap-5">
+        <div v-if="isAdmin">
+          <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Email Address (Admin Only)</label>
+          <input v-model="localUser.email" type="email" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
+        </div>
         <div>
           <select v-model="localUser.role" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
             <option v-for="role in availableRoles" :key="role.value" :value="role.value" :disabled="role.disabled" :class="role.disabled ? 'opacity-50' : ''">
@@ -41,6 +45,7 @@ const props = defineProps({
   availableRoles: { type: Array, default: () => [] },
   assignedOfficerRoles: { type: Array, default: () => [] },
   instrumentList: { type: Array, default: () => [] },
+  isAdmin: Boolean,
 });
 
 defineEmits(['save', 'cancel']);

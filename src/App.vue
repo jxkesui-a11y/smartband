@@ -102,6 +102,7 @@
       :availableRoles="getAvailableRoles"
       :assignedOfficerRoles="getAssignedOfficerRoles"
       :instrumentList="instrumentList"
+      :isAdmin="currentUser?.role?.toLowerCase() === 'admin'"
       @save="handleSaveUser"
       @cancel="editingUser = null"
     />
@@ -614,8 +615,19 @@ const saveUserChanges = async () => {
   isSubmitting.value = true;
   
   try {
+    const updatePayload = { 
+      role: editingUser.value.role, 
+      tier: editingUser.value.tier, 
+      instrument: editingUser.value.instrument 
+    };
+    
+    // Only admins can update the email
+    if (currentUser.value.role?.toLowerCase() === 'admin') {
+      updatePayload.email = editingUser.value.email;
+    }
+
     const { error } = await supabase.from('users')
-      .update({ role: editingUser.value.role, tier: editingUser.value.tier, instrument: editingUser.value.instrument })
+      .update(updatePayload)
       .eq('id', editingUser.value.id);
     
     if (!error) { 
