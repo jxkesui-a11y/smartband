@@ -234,6 +234,7 @@ const handleAuth = async () => {
         first_name: firstName.value,
         last_name: lastName.value,
         instrument: instrument.value,
+        password: 'AUTH_MANAGED', // Placeholder to satisfy database NOT NULL constraint
         role: 'member',
         status: 'pending',
         tier: 'junior'
