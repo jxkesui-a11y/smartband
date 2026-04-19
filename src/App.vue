@@ -1115,7 +1115,9 @@ onMounted(() => {
     setupRealtime();
 
     // 2. Setup the event reminder check (every 1 minute)
+    // Also run once after a short delay so events already close to now are caught on load
     setInterval(checkEventReminders, 60000);
+    setTimeout(checkEventReminders, 5000); // initial check after dashboard data loads
 
     // 3. Only handle permission modals if not already handled this session
     if (!localStorage.getItem('smartband_permissions_session')) {
@@ -1153,39 +1155,123 @@ watch([activeTab, selectedChannel], ([tab, channel]) => {
   if (tab === 'requests' && currentUser.value?.role === 'admin') fetchPendingUsers();
 });
 
+// ==========================================
+// ALARM SOUND (Web Audio API — no file needed)
+// ==========================================
+const playAlarmSound = (urgent = false) => {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    // Bell-like envelope: three short descending tones
+    const tones = urgent
+      ? [880, 660, 880, 660, 880]   // urgent: fast repeating
+      : [880, 740, 622];             // gentle 3-note chime
+
+    tones.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      const start = ctx.currentTime + i * 0.28;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.45, start + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+
+      osc.start(start);
+      osc.stop(start + 0.55);
+    });
+
+    // Auto-close context after all tones
+    setTimeout(() => ctx.close(), tones.length * 280 + 700);
+  } catch (err) {
+    console.warn('Alarm sound failed:', err);
+  }
+};
+
+// Track which (eventId + minuteWindow) combos we've already notified
+// to avoid double-firing in the same polling cycle.
+const firedReminderKeys = new Set();
+
 const checkEventReminders = () => {
   if (Notification.permission !== 'granted') return;
 
   const now = new Date();
-  const currentDate = now.toISOString().split('T')[0];
+  // Use YYYY-MM-DD in local time (not UTC) so the date matches event_date
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   dashboardEvents.value.forEach(event => {
-    const isGoing = getUserRSVP(event.id) === 'going';
-    if (!isGoing || event.event_date !== currentDate || !event.time_str) return;
+    // Notify for ALL roadmap events on today's date (not just RSVP'd ones)
+    if (event.event_date !== localDate || !event.time_str) return;
 
-    // Parse event.time_str (e.g., "2:30 PM") into a Date object for today
-    const timeParts = event.time_str.split(' ');
-    if(timeParts.length < 2) return;
-    
-    const [hours, minutes] = timeParts[0].split(':');
-    const period = timeParts[1].toUpperCase();
-    
-    let eventHours = parseInt(hours);
-    if (period === 'PM' && eventHours !== 12) eventHours += 12;
-    if (period === 'AM' && eventHours === 12) eventHours = 0;
+    // Parse time_str — handles "2:30 PM" and "14:30" formats
+    const timeParts = event.time_str.trim().split(' ');
+    const [hourStr, minStr] = timeParts[0].split(':');
+    let eventHours = parseInt(hourStr);
+    const eventMinutes = parseInt(minStr);
+
+    if (timeParts.length >= 2) {
+      const period = timeParts[1].toUpperCase();
+      if (period === 'PM' && eventHours !== 12) eventHours += 12;
+      if (period === 'AM' && eventHours === 12) eventHours = 0;
+    }
 
     const eventDate = new Date();
-    eventDate.setHours(eventHours, parseInt(minutes), 0, 0);
+    eventDate.setHours(eventHours, eventMinutes, 0, 0);
 
-    // Calculate difference in minutes
     const timeDiffMinutes = Math.round((eventDate - now) / 60000);
+    const rsvpStatus = getUserRSVP(event.id); // 'going', 'not_going', or null
 
-    // Trigger exactly at 15 minutes before, and exactly at 0 minutes.
-    if (timeDiffMinutes === 15) {
-      triggerBrowserNotification("Upcoming Event in 15 Min!", `${event.title} is starting soon at ${event.location || 'TBA'}`);
-    } else if (timeDiffMinutes === 0) {
-      triggerBrowserNotification("Event Starting Now!", `${event.title} is starting at ${event.location || 'TBA'}`);
+    // --- 5-Minute Warning (alarm + push notification) ---
+    const key5 = `${event.id}:5`;
+    if (timeDiffMinutes === 5 && !firedReminderKeys.has(key5)) {
+      firedReminderKeys.add(key5);
+      playAlarmSound(false);
+      const rsvpSuffix = rsvpStatus === 'going' ? ' · You RSVPd Going' : rsvpStatus === 'not_going' ? " · You said Can't Make It" : '';
+      triggerBrowserNotification(
+        `⏰ Event in 5 Minutes: ${event.title}`,
+        `Starting at ${event.time_str} · ${event.location || 'TBA'}${rsvpSuffix}`
+      );
+      // Also show in-app toast so they notice even if the tab is focused
+      showToast(`⏰ "${event.title}" starts in 5 minutes!`, 'success');
+    }
+
+    // --- 15-Minute Warning (push only, no alarm) ---
+    const key15 = `${event.id}:15`;
+    if (timeDiffMinutes === 15 && !firedReminderKeys.has(key15)) {
+      firedReminderKeys.add(key15);
+      triggerBrowserNotification(
+        `📅 Reminder: ${event.title} in 15 Min`,
+        `${event.time_str} · ${event.location || 'TBA'}`
+      );
+    }
+
+    // --- Now! (urgent alarm + push notification) ---
+    const key0 = `${event.id}:0`;
+    if (timeDiffMinutes === 0 && !firedReminderKeys.has(key0)) {
+      firedReminderKeys.add(key0);
+      playAlarmSound(true); // urgent = faster beeping
+      triggerBrowserNotification(
+        `🔔 Starting NOW: ${event.title}`,
+        `${event.location || 'TBA'} — It\'s time!`
+      );
+      showToast(`🔔 "${event.title}" is starting NOW!`, 'success');
     }
   });
+
+  // Prune old keys for past events so the Set doesn't grow forever
+  // (cleanup once per call: remove keys whose event is no longer in dashboardEvents)
+  const activeIds = new Set(dashboardEvents.value.map(e => e.id));
+  for (const key of firedReminderKeys) {
+    const id = key.split(':')[0];
+    if (!activeIds.has(id) && !activeIds.has(parseInt(id))) {
+      firedReminderKeys.delete(key);
+    }
+  }
 };
 </script>
