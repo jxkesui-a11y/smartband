@@ -13,9 +13,14 @@
           <h4 class="font-bold text-white text-base md:text-lg truncate">{{ sheet.title }}</h4>
           <p class="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em] mt-2">{{ sheet.instrument }}</p>
         </div>
-        <a :href="sheet.file_path" target="_blank" class="text-xl text-[#F5C518] hover:scale-110 transition-transform p-2">
-          <i class="fa-solid fa-download"></i>
-        </a>
+        <div class="flex items-center gap-2">
+          <a :href="sheet.file_path" target="_blank" class="text-xl text-[#F5C518] hover:scale-110 transition-transform p-2">
+            <i class="fa-solid fa-download"></i>
+          </a>
+          <button v-if="canManageDashboard" @click="deleteSheet(sheet.id, sheet.file_path)" class="text-xl text-red-500 hover:scale-110 transition-transform p-2">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -43,7 +48,7 @@
 <script setup>
 import { ref, inject } from 'vue';
 
-const { filteredSheets, canManageDashboard, isSubmitting, uploadSheet } = inject('smartband');
+const { filteredSheets, canManageDashboard, isSubmitting, uploadSheet, deleteSheet } = inject('smartband');
 const showUploadModal = ref(false);
 const instrumentList = ['Trumpet', 'Alto Sax', 'Tenor Sax', 'Clarinet', 'Flute', 'Trombone', 'Tuba', 'Percussion'];
 const selectedFile = ref(null);

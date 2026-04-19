@@ -1,7 +1,11 @@
 <template>
   <Login v-if="!isLoggedIn" @login-success="handleLoginSuccess" />
 
-  <div v-if="isLoggedIn && !notificationPermissionDenied" class="min-h-screen bg-black p-4 md:p-6 flex gap-6 font-sans text-gray-100 overflow-hidden relative text-left">
+  <div v-if="isOffline" class="bg-[#FF453A] text-white text-[10px] font-bold text-center py-1.5 fixed top-0 left-0 right-0 z-[9999] uppercase tracking-[0.2em] animate-pulse">
+    <i class="fa-solid fa-wifi font-bold mr-2 opacity-50 relative after:content-['/'] after:absolute after:left-[2px] after:top-0"></i> You are offline. Viewing cached data.
+  </div>
+
+  <div v-if="isLoggedIn && !notificationPermissionDenied" class="min-h-screen bg-black p-4 md:p-6 flex gap-6 font-sans text-gray-100 overflow-hidden relative text-left" :class="isOffline ? 'pt-12' : ''">
     
     <div v-if="toast.show" class="fixed top-10 right-1/2 translate-x-1/2 md:translate-x-0 md:right-10 z-[200] px-8 py-4 rounded-2xl shadow-2xl transition-all font-bold text-sm uppercase tracking-widest animate-in slide-in-from-top-10" :class="toast.type === 'error' ? 'bg-[#FF453A] text-white' : 'bg-[#32D74B] text-black'">
       <i class="mr-2" :class="toast.type === 'error' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check'"></i> {{ toast.message }}
@@ -182,6 +186,17 @@
       <button @click="() => { isLoggedIn = false; notificationPermissionDenied = false; handleLogout(); }" class="w-full bg-[#FF453A] text-white px-6 py-4 rounded-[20px] font-bold text-sm uppercase tracking-widest hover:bg-[#ff5a47] transition-all min-h-[44px]"><i class="fa-solid fa-arrow-left mr-2"></i> Return to Login</button>
       <p class="text-[10px] text-gray-600 mt-4 uppercase tracking-wider">You'll be asked again after login.</p>
     </div>
+  <!-- Custom Confirm Modal -->
+  <div v-if="confirmModal.show" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div class="bg-[#111111] border border-[#FF453A]/20 w-full max-w-sm rounded-[32px] p-8 shadow-3xl text-center">
+      <div class="text-4xl mb-4 text-[#FF453A]"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <h3 class="text-xl font-bold text-white mb-2">{{ confirmModal.title }}</h3>
+      <p class="text-sm text-gray-400 mb-8">{{ confirmModal.message }}</p>
+      <div class="flex gap-3">
+        <button @click="confirmModal.onCancel" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold text-gray-300 hover:bg-white/5 transition-all min-h-[44px]">Cancel</button>
+        <button @click="confirmModal.onConfirm" class="flex-1 py-3 bg-[#FF453A] text-white rounded-xl text-[10px] uppercase font-bold hover:bg-[#ff5a47] transition-all min-h-[44px]">Confirm</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -217,6 +232,33 @@ const dndExempted = ref(false);
 // Toasts and Loading states
 const toast = ref({ show: false, message: '', type: 'success' });
 const isSubmitting = ref(false);
+const isOffline = ref(!navigator.onLine);
+
+const confirmModal = ref({
+  show: false,
+  title: '',
+  message: '',
+  onConfirm: null,
+  onCancel: null
+});
+
+const showConfirm = (title, message) => {
+  return new Promise((resolve) => {
+    confirmModal.value = {
+      show: true,
+      title,
+      message,
+      onConfirm: () => {
+        confirmModal.value.show = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        confirmModal.value.show = false;
+        resolve(false);
+      }
+    };
+  });
+};
 
 const showToast = (msg, type = 'success') => {
   toast.value = { show: true, message: msg, type };
@@ -322,7 +364,7 @@ const loadDashboard = async () => {
     { data: acks },
     { data: rsvps }
   ] = await Promise.all([
-    supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false }),
+    supabase.from('feed_posts').select('*, users(first_name, last_name)').order('created_at', { ascending: false }).limit(50),
     supabase.from('events').select('*').order('event_date', { ascending: true }),
     supabase.from('post_acknowledgments').select('*'),
     supabase.from('event_rsvps').select('*')
@@ -451,10 +493,11 @@ const fetchMessages = async () => {
   const { data } = await supabase.from('messages')
     .select('*, users(first_name, last_name)')
     .eq('channel', selectedChannel.value)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(50);
     
   if (data) {
-    chatMessages.value = data.map(msg => ({
+    chatMessages.value = data.reverse().map(msg => ({
       ...msg,
       first_name: msg.users?.first_name,
       last_name: msg.users?.last_name
@@ -542,6 +585,34 @@ const updateMyProfile = async () => {
 
 const saveUserChanges = async () => {
   if (isSubmitting.value) return;
+
+  // --- Strict Security Validations ---
+  const originalUser = roster.value.find(u => u.id === editingUser.value.id);
+  
+  if (currentUser.value.role !== 'admin') {
+    // 1. Officers cannot edit Admins
+    if (originalUser && originalUser.role === 'admin') {
+      showToast("Permission denied: You cannot edit an Admin.", "error");
+      return;
+    }
+    // 2. Officers cannot promote someone to Admin
+    if (editingUser.value.role === 'admin') {
+      showToast("Permission denied: Only Admins can promote to Admin.", "error");
+      return;
+    }
+    // 3. Officers cannot change their own roles to escape or elevate
+    if (editingUser.value.id === currentUser.value.id && editingUser.value.role !== originalUser.role) {
+      showToast("You cannot change your own officer role.", "error");
+      return;
+    }
+  }
+
+  // 4. Admins cannot strip their own Admin status (prevents locking out the system)
+  if (currentUser.value.role === 'admin' && editingUser.value.id === currentUser.value.id && editingUser.value.role !== 'admin') {
+    showToast("You cannot remove your own Admin status.", "error");
+    return;
+  }
+
   isSubmitting.value = true;
   
   try {
@@ -566,7 +637,20 @@ const saveUserChanges = async () => {
 };
 
 const deleteUser = async (uId) => {
-  if(!confirm("Permanently delete this member?")) return;
+  // 1. No one can delete themselves
+  if (uId === currentUser.value.id) {
+    showToast("Action blocked: You cannot delete your own account.", "error");
+    return;
+  }
+
+  // 2. Only Admins can delete Admins
+  const targetUser = roster.value.find(u => u.id === uId) || pendingUsers.value.find(u => u.id === uId);
+  if (targetUser && targetUser.role === 'admin' && currentUser.value.role !== 'admin') {
+    showToast("Permission denied: You cannot delete an Admin.", "error");
+    return;
+  }
+
+  if(!(await showConfirm("Delete Member", "Permanently delete this member?"))) return;
   isSubmitting.value = true;
   
   try {
@@ -610,7 +694,7 @@ const approveUser = async (uId) => {
 };
 
 const declineUser = async (uId) => {
-  if (!confirm("Are you sure you want to decline and delete this request?")) return;
+  if (!(await showConfirm("Decline Request", "Are you sure you want to decline and delete this request?"))) return;
   isSubmitting.value = true;
   
   try {
@@ -644,7 +728,7 @@ const submitPost = async () => {
 };
 
 const deletePost = async (id) => {
-  if(confirm("Delete this post?")) { 
+  if(await showConfirm("Delete Post", "Delete this post?")) { 
     const { error } = await supabase.from('feed_posts').delete().eq('id', id);
     if(!error) { showToast('Post deleted'); loadDashboard(); }
   }
@@ -671,7 +755,7 @@ const submitEvent = async () => {
 };
 
 const deleteEvent = async (id) => {
-  if(confirm("Delete this event?")) { 
+  if(await showConfirm("Delete Event", "Delete this event?")) { 
     const { error } = await supabase.from('events').delete().eq('id', id);
     if(!error) { showToast('Event deleted'); loadDashboard(); }
   }
@@ -1041,16 +1125,39 @@ const uploadSheet = async (file, title, instrumentStr) => {
     isSubmitting.value = false;
   }
 };
+
+const deleteSheet = async (id, file_path) => {
+  if(!(await showConfirm("Delete Score", "Permanently delete this score and file?"))) return;
+  isSubmitting.value = true;
+  try {
+    // Extract filename from the end of the public URL
+    const fileName = file_path.split('/').pop();
+    if (fileName) {
+      await supabase.storage.from('sheets').remove([fileName]);
+    }
+    const { error } = await supabase.from('music_sheets').delete().eq('id', id);
+    if (!error) {
+      showToast('Sheet deleted successfully!');
+      fetchMusicSheets();
+    } else throw error;
+  } catch (err) {
+    showToast('Failed to delete sheet: ' + err.message, 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
 provide('smartband', {
   dashboardPosts, dashboardEvents, canManageDashboard, showAddPostModal, deletePost, formatDate, hasAcknowledged, acknowledgePost, getAckCount, showAddEventModal, deleteEvent, formatMonth, formatDay, submitRSVP, getUserRSVP, getRSVPStats, toggleAttendeesList, expandedEventId, getAttendeesList,
   chatMessages, newMessageContent, sendMessage, isSubmitting, selectedChannel, currentUser,
-  filteredSheets, uploadSheet,
+  filteredSheets, uploadSheet, deleteSheet,
   roster, isOnline, openEditModal, deleteUser,
   pendingUsers, declineUser, approveUser
 });
 
 onMounted(() => {
   window.addEventListener('keydown', handleEscKey); 
+  window.addEventListener('offline', () => isOffline.value = true);
+  window.addEventListener('online', () => { isOffline.value = false; showToast('Back online!', 'success'); }); 
 
   if(isLoggedIn.value) {
     myProfileForm.value = { 
