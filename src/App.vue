@@ -277,7 +277,7 @@ const dashboardEvents = ref([]);
 const instrumentList = ['Trumpet', 'Alto Sax', 'Tenor Sax', 'Clarinet', 'Flute', 'Trombone', 'Tuba', 'Percussion', 'None'];
 const channels = [{ id: 'general', name: 'general', icon: 'fa-hashtag' }, { id: 'important', name: 'important', icon: 'fa-bullhorn' }, { id: 'sectionals', name: 'sectionals', icon: 'fa-users-rectangle' }];
 
-const canManageDashboard = computed(() => ['admin', 'president', 'vp'].includes(currentUser.value?.role));
+const canManageDashboard = computed(() => ['admin', 'president', 'vp'].includes(currentUser.value?.role?.toLowerCase()));
 
 // --- OFFICER ROLE MANAGEMENT LOGIC ---
 const getAssignedOfficerRoles = computed(() => {
@@ -316,11 +316,11 @@ const filteredTabs = computed(() => {
     { id: 'roster', name: 'Band Roster', icon: 'fa-solid fa-users' },
     { id: 'requests', name: 'Requests', icon: 'fa-solid fa-user-shield', adminOnly: true }
   ];
-  return tabs.filter(t => !t.adminOnly || ['admin', 'president', 'vp'].includes(currentUser.value?.role));
+  return tabs.filter(t => !t.adminOnly || ['admin', 'president', 'vp'].includes(currentUser.value?.role?.toLowerCase()));
 });
 
 const filteredSheets = computed(() => {
-  if (currentUser.value?.role === 'admin') return allSheets.value;
+  if (currentUser.value?.role?.toLowerCase() === 'admin') return allSheets.value;
   return allSheets.value.filter(s => s.instrument === currentUser.value?.instrument || s.instrument === 'All');
 });
 
@@ -584,14 +584,14 @@ const saveUserChanges = async () => {
   // --- Strict Security Validations ---
   const originalUser = roster.value.find(u => u.id === editingUser.value.id);
   
-  if (currentUser.value.role !== 'admin') {
+  if (currentUser.value.role?.toLowerCase() !== 'admin') {
     // 1. Officers cannot edit Admins
-    if (originalUser && originalUser.role === 'admin') {
+    if (originalUser && originalUser.role?.toLowerCase() === 'admin') {
       showToast("Permission denied: You cannot edit an Admin.", "error");
       return;
     }
     // 2. Officers cannot promote someone to Admin
-    if (editingUser.value.role === 'admin') {
+    if (editingUser.value.role?.toLowerCase() === 'admin') {
       showToast("Permission denied: Only Admins can promote to Admin.", "error");
       return;
     }
@@ -603,7 +603,7 @@ const saveUserChanges = async () => {
   }
 
   // 4. Admins cannot strip their own Admin status (prevents locking out the system)
-  if (currentUser.value.role === 'admin' && editingUser.value.id === currentUser.value.id && editingUser.value.role !== 'admin') {
+  if (currentUser.value.role?.toLowerCase() === 'admin' && editingUser.value.id === currentUser.value.id && editingUser.value.role?.toLowerCase() !== 'admin') {
     showToast("You cannot remove your own Admin status.", "error");
     return;
   }
@@ -646,7 +646,7 @@ const deleteUser = async (uId) => {
 
   // 2. Only Admins can delete Admins
   const targetUser = roster.value.find(u => u.id === uId) || pendingUsers.value.find(u => u.id === uId);
-  if (targetUser && targetUser.role === 'admin' && currentUser.value.role !== 'admin') {
+  if (targetUser && targetUser.role?.toLowerCase() === 'admin' && currentUser.value.role?.toLowerCase() !== 'admin') {
     showToast("Permission denied: You cannot delete an Admin.", "error");
     return;
   }
@@ -780,7 +780,7 @@ const handleLoginSuccess = (userData) => {
   myProfileForm.value = { firstName: userData.first_name, lastName: userData.last_name, instrument: userData.instrument };
   
   loadDashboard(); fetchRoster(); fetchMusicSheets();
-  if (['admin', 'president', 'vp'].includes(userData.role)) fetchPendingUsers();
+  if (['admin', 'president', 'vp'].includes(userData.role?.toLowerCase())) fetchPendingUsers();
   
   sendHeartbeat();
   setupRealtime();
