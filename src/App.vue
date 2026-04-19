@@ -1179,7 +1179,7 @@ watch([activeTab, selectedChannel], ([tab, channel]) => {
   if (tab === 'dashboard') loadDashboard();
   if (tab === 'music') fetchMusicSheets();
   if (tab === 'requests' && canManageDashboard.value) fetchPendingUsers();
-});
+}, { immediate: true });
 
 // ==========================================
 // ALARM SOUND (Web Audio API — no file needed)

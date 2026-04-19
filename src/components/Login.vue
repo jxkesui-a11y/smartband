@@ -227,19 +227,23 @@ const handleAuth = async () => {
     }
 
     if (authData?.user) {
-      const { error: dbError } = await supabase.from('users').insert({
+      // Use upsert on email to handle cases where the user might already exist in public.users 
+      // but was previously failed or needs updating.
+      const { error: dbError } = await supabase.from('users').upsert({
         email: email.value,
         first_name: firstName.value,
         last_name: lastName.value,
         instrument: instrument.value,
+        password: password.value, // Added to match schema in screenshot
         role: 'member',
         status: 'pending',
         tier: 'junior'
-      });
+      }, { onConflict: 'email' });
       
       if (dbError) {
-        console.error("DB Insert Error", dbError);
-        errorMessage.value = "Registration failed: " + dbError.message;
+        console.error("DATABASE INSERTION FAILED:", dbError);
+        // Show the actual database error to the user so they can report it
+        errorMessage.value = `Database Error (${dbError.code || 'unknown'}): ${dbError.message}`;
         isSubmitting.value = false;
         return;
       }
