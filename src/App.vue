@@ -420,6 +420,7 @@ const instrumentList = ['Trumpet', 'Alto Sax', 'Tenor Sax', 'Clarinet', 'Flute',
 const channels = [{ id: 'general', name: 'general', icon: 'fa-hashtag' }, { id: 'important', name: 'important', icon: 'fa-bullhorn' }, { id: 'sectionals', name: 'sectionals', icon: 'fa-users-rectangle' }];
 
 const canManageDashboard = computed(() => ['admin', 'president', 'vp'].includes(currentUser.value?.role));
+
 // --- OFFICER ROLE MANAGEMENT LOGIC ---
 const getAssignedOfficerRoles = computed(() => {
   if (!roster.value) return [];
@@ -542,7 +543,7 @@ const submitRSVP = async (eventId, status, eventObj = null) => {
     }
 
     if (!error) {
-      showToast('RSVP updated!');
+      showToast('Updated!');
       
       // Add to calendar if user marked as "going"
       if (status === 'going' && eventObj) {
@@ -569,6 +570,7 @@ const submitRSVP = async (eventId, status, eventObj = null) => {
     showToast('Error saving RSVP', 'error');
     console.error('Exception in submitRSVP:', err);
   }
+  checkEventReminders();
 };
 
 const getUserRSVP = (eventId) => {
@@ -1064,21 +1066,30 @@ const handleMessagesClick = () => { activeTab.value = 'messages'; isMessagesExpa
 let realtimeChannel;
 
 const triggerBrowserNotification = (title, body) => {
-  if (notificationPermissionStatus.value === 'granted') {
+  // Check the actual browser API permission directly, not just our ref
+  if (window.Notification && Notification.permission === 'granted') {
     new Notification(title, {
       body: body,
-      icon: '/icon.png' // Make sure you have an icon in your public folder
+      icon: '/icon.png'
     });
+  } else {
+    console.warn("Notification blocked: Permission is", Notification.permission);
   }
 };
 
 const setupRealtime = () => {
   realtimeChannel = supabase.channel('smartband-sync')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, (payload) => {
-      if (activeTab.value === 'dashboard') loadDashboard();
-      // Trigger notification for urgent posts
-      if (payload.new.is_urgent && payload.new.author_id !== currentUser.value.id) {
-        triggerBrowserNotification('Urgent Band Announcement!', payload.new.title);
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      console.log("NEW MESSAGE RECEIVED:", payload); // Debug log
+      
+      if (activeTab.value === 'messages' && selectedChannel.value === payload.new.channel) {
+        fetchMessages();
+      } else {
+        unreadMessages.value[payload.new.channel]++;
+      }
+
+      if (payload.new.sender_id !== currentUser.value.id) {
+        triggerBrowserNotification(`New Message in #${payload.new.channel}`, payload.new.content);
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -1097,7 +1108,9 @@ const setupRealtime = () => {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'event_rsvps' }, () => {
       if (activeTab.value === 'dashboard') loadDashboard();
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log("Realtime status:", status); // This should say 'SUBSCRIBED'
+    });
 };
 
 const toggleAttendeesList = (eventId) => {
@@ -1110,36 +1123,61 @@ const handleEscKey = (e) => {
   }
 };
 
+const setupNotifications = async () => {
+  if (!("Notification" in window)) return;
+  
+  // Only ask if they haven't decided yet
+  if (Notification.permission === "default") {
+    await Notification.requestPermission();
+  }
+};
+
 onMounted(() => {
   window.addEventListener('keydown', handleEscKey); 
 
   if(isLoggedIn.value) {
-    myProfileForm.value = { firstName: currentUser.value.first_name, lastName: currentUser.value.last_name, instrument: currentUser.value.instrument };
-    loadDashboard(); fetchRoster(); fetchMusicSheets();
+    myProfileForm.value = { 
+      firstName: currentUser.value.first_name, 
+      lastName: currentUser.value.last_name, 
+      instrument: currentUser.value.instrument 
+    };
+    
+    loadDashboard(); 
+    fetchRoster(); 
+    fetchMusicSheets();
+    
     if (currentUser.value?.role === 'admin') fetchPendingUsers();
     
     sendHeartbeat();
     heartbeatInterval = setInterval(sendHeartbeat, 120000); 
-    setupRealtime();
     
-    // If user is already logged in (page refresh), still handle permissions if not done this session
-    if (!userPermissionsHandled.value) {
-      userPermissionsHandled.value = true;
-      setTimeout(() => {
-        const currentStatus = Notification?.permission || 'default';
-        notificationPermissionStatus.value = currentStatus;
-        
-        if (currentStatus === 'default') {
-          showNotificationPermissionModal.value = true;
-        } else if (currentStatus === 'denied') {
-          notificationPermissionDenied.value = true;
-        } else if (currentStatus === 'granted') {
-          setTimeout(() => showCalendarPermissionModal.value = true, 300);
-        }
-      }, 500);
+    // 1. Setup Supabase Realtime for messages/updates
+    setupRealtime();
+
+    // 2. Setup the event reminder check (every 1 minute)
+    setInterval(checkEventReminders, 60000);
+
+    // 3. Only handle permission modals if not already handled this session
+    if (!localStorage.getItem('smartband_permissions_session')) {
+      handlePermissionLogic();
     }
   }
 });
+
+// Helper to handle the modal logic cleanely
+const handlePermissionLogic = () => {
+  const currentStatus = Notification?.permission || 'default';
+  notificationPermissionStatus.value = currentStatus;
+  
+  if (currentStatus === 'default') {
+    showNotificationPermissionModal.value = true;
+  } else if (currentStatus === 'granted') {
+    const calendarStatus = localStorage.getItem('smartband_calendar_permission') || 'default';
+    if (calendarStatus === 'default') {
+      showCalendarPermissionModal.value = true;
+    }
+  }
+};
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleEscKey);
@@ -1154,4 +1192,22 @@ watch([activeTab, selectedChannel], ([tab, channel]) => {
   if (tab === 'music') fetchMusicSheets();
   if (tab === 'requests' && currentUser.value?.role === 'admin') fetchPendingUsers();
 });
+
+const checkEventReminders = () => {
+  if (Notification.permission !== 'granted') return;
+
+  const now = new Date();
+  // Normalize everything to uppercase and trim spaces
+  const currentTime = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase().trim();
+  const currentDate = now.toISOString().split('T')[0];
+
+  dashboardEvents.value.forEach(event => {
+    const isGoing = getUserRSVP(event.id) === 'going';
+    const eventTime = event.time_str?.toUpperCase().trim();
+
+    if (isGoing && event.event_date === currentDate && eventTime === currentTime) {
+      triggerBrowserNotification("Event Starting Now!", `${event.title} at ${event.location}`);
+    }
+  });
+};
 </script>
