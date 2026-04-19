@@ -13,7 +13,7 @@
 
     <div class="absolute bottom-0 right-0 w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(60,10,10,0.4)_0%,rgba(0,0,0,0)_60%)] pointer-events-none -z-10"></div>
     
-    <div v-if="showProfileMenu || showNotiMenu || showMobileMenu" @click="closeMenus" class="fixed inset-0 z-40"></div>
+    <div v-if="showProfileMenu || showMobileMenu" @click="closeMenus" class="fixed inset-0 z-40"></div>
 
     <aside class="w-64 shrink-0 bg-[#111111] rounded-[24px] p-5 flex flex-col border border-white/5 hidden md:flex shadow-2xl relative z-50">
       <div class="flex items-center gap-3 text-xl font-bold text-white mb-10 px-2 uppercase tracking-tighter">
@@ -96,56 +96,37 @@
       </div>
     </main>
 
-    <div v-if="editingUser" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-      <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 shadow-3xl text-left max-h-[90vh] overflow-y-auto">
-        <h3 class="text-xl md:text-2xl font-bold mb-6">Manage Member</h3>
-        <div class="flex flex-col gap-4 md:gap-5">
-          <div>
-            <select v-model="editingUser.role" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
-              <option v-for="role in getAvailableRoles" :key="role.value" :value="role.value" :disabled="role.disabled" :class="role.disabled ? 'opacity-50' : ''">{{ role.label }}{{ role.disabled ? ' (Already Assigned)' : '' }}</option>
-            </select>
-            <p v-if="getAssignedOfficerRoles.length > 0" class="text-[10px] text-gray-500 mt-2 uppercase tracking-wider"><i class="fa-solid fa-info-circle mr-1"></i> Officer roles marked as assigned are already given to other members.</p>
-          </div>
-          <select v-model="editingUser.tier" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white capitalize outline-none focus:border-[#F5C518]"><option value="senior">Senior Musician</option><option value="junior">Junior Musician</option><option value="none">Staff / Non-Player</option></select>
-          <select v-model="editingUser.instrument" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]"><option v-for="inst in instrumentList" :key="inst" :value="inst">{{ inst }}</option></select>
-          <div class="flex gap-3 md:gap-4 pt-4 md:pt-6"><button @click="editingUser = null" class="flex-1 py-4 md:py-5 border border-white/10 rounded-[20px] text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 min-h-[44px]" :disabled="isSubmitting">Cancel</button><button @click="saveUserChanges" class="flex-1 py-4 md:py-5 bg-[#F5C518] text-black rounded-[20px] font-bold text-[10px] uppercase tracking-widest min-h-[44px]" :disabled="isSubmitting"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-2"></i>{{ isSubmitting ? 'Saving...' : 'Save' }}</button></div>
-        </div>
-      </div>
-    </div>
+    <EditMemberModal
+      :modelValue="editingUser"
+      :isSubmitting="isSubmitting"
+      :availableRoles="getAvailableRoles"
+      :assignedOfficerRoles="getAssignedOfficerRoles"
+      :instrumentList="instrumentList"
+      @save="handleSaveUser"
+      @cancel="editingUser = null"
+    />
 
-    <div v-if="showMyProfileModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-      <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 shadow-3xl text-left max-h-[90vh] overflow-y-auto">
-        <h3 class="text-xl md:text-2xl font-bold mb-6 text-white">Edit My Profile</h3>
-        <div class="flex flex-col gap-4 md:gap-5">
-          <div><label class="text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">First Name</label><input v-model="myProfileForm.firstName" maxlength="50" type="text" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]"></div>
-          <div><label class="text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Last Name</label><input v-model="myProfileForm.lastName" maxlength="50" type="text" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]"></div>
-          <div><label class="text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Instrument</label><select v-model="myProfileForm.instrument" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]"><option v-for="inst in instrumentList" :key="inst" :value="inst">{{ inst }}</option></select></div>
-          <div class="flex gap-3 md:gap-4 pt-4 md:pt-6"><button @click="showMyProfileModal = false" class="flex-1 py-4 md:py-5 border border-white/10 rounded-[20px] text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 min-h-[44px]">Cancel</button><button @click="updateMyProfile" class="flex-1 py-4 md:py-5 bg-[#F5C518] text-black rounded-[20px] font-bold text-[10px] uppercase tracking-widest min-h-[44px]">Update</button></div>
-        </div>
-      </div>
-    </div>
+    <MyProfileModal
+      :show="showMyProfileModal"
+      :form="myProfileForm"
+      :instrumentList="instrumentList"
+      @update="updateMyProfile"
+      @cancel="showMyProfileModal = false"
+    />
 
-    <div v-if="showAddPostModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-      <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-xl font-bold mb-4">New Post</h3>
-        <input v-model="postForm.title" maxlength="100" placeholder="Title" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-4 text-sm text-white outline-none focus:border-[#F5C518]">
-        <textarea v-model="postForm.message" maxlength="1000" placeholder="Message content..." class="w-full bg-black border border-white/10 rounded-xl p-4 mb-4 text-sm text-white outline-none h-24 md:h-32 focus:border-[#F5C518]"></textarea>
-        <label class="flex items-center gap-2 text-sm text-white mb-6"><input type="checkbox" v-model="postForm.isUrgent" class="accent-[#F5C518]"> Mark as Urgent</label>
-        <div class="flex gap-3 md:gap-4"><button @click="showAddPostModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitPost" :disabled="isSubmitting" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Post</button></div>
-      </div>
-    </div>
+    <AddPostModal
+      :show="showAddPostModal"
+      :isSubmitting="isSubmitting"
+      @submit="submitPost"
+      @cancel="showAddPostModal = false"
+    />
 
-    <div v-if="showAddEventModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
-      <div class="bg-[#111111] border border-white/10 w-full max-w-md rounded-[44px] p-6 md:p-10 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-xl font-bold mb-4">New Event</h3>
-        <input v-model="eventForm.title" maxlength="100" placeholder="Event Name" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518]">
-        <input type="date" v-model="eventForm.date" :min="getTodayDateString()" style="color-scheme: dark;" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518] cursor-pointer" @change="validateEventDate">
-        <input type="time" v-model="eventForm.time" required style="color-scheme: dark;" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-3 text-sm text-white outline-none focus:border-[#F5C518] cursor-pointer">
-        <p v-if="isEventDateInvalid" class="text-[#FF453A] text-[10px] mb-2">❌ Cannot schedule events in the past</p>
-        <input v-model="eventForm.location" maxlength="150" placeholder="Location" class="w-full bg-black border border-white/10 rounded-xl p-4 mb-6 text-sm text-white outline-none focus:border-[#F5C518]">
-        <div class="flex gap-3 md:gap-4"><button @click="showAddEventModal = false" class="flex-1 py-3 border border-white/10 rounded-xl text-[10px] uppercase font-bold min-h-[44px]">Cancel</button><button @click="submitEvent" :disabled="isSubmitting || !eventForm.date || !eventForm.time || isEventDateInvalid" class="flex-1 py-3 bg-[#F5C518] text-black rounded-xl text-[10px] uppercase font-bold min-h-[44px] disabled:opacity-50"><i v-if="isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i> Add</button></div>
-      </div>
-    </div>
+    <AddEventModal
+      :show="showAddEventModal"
+      :isSubmitting="isSubmitting"
+      @submit="submitEvent"
+      @cancel="showAddEventModal = false"
+    />
 
   </div>
 
@@ -207,7 +188,11 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, provide } from 
 import { useRouter, useRoute } from 'vue-router';
 
 import Login from './components/Login.vue';
-import { supabase } from './supabase'; 
+import EditMemberModal from './components/modals/EditMemberModal.vue';
+import MyProfileModal from './components/modals/MyProfileModal.vue';
+import AddPostModal from './components/modals/AddPostModal.vue';
+import AddEventModal from './components/modals/AddEventModal.vue';
+import { supabase } from './supabase';
 
 // --- UI STATE ---
 const storedUser = localStorage.getItem('smartband_user');
@@ -229,7 +214,6 @@ const showCalendarPermissionModal = ref(false);
 const notificationPermissionStatus = ref(Notification?.permission || 'default'); // 'default', 'granted', 'denied'
 const calendarPermissionStatus = ref(localStorage.getItem('smartband_calendar_permission') || 'default'); // 'default', 'granted', 'denied'
 const userPermissionsHandled = ref(localStorage.getItem('smartband_permissions_session') === 'true'); // Persist across sessions
-const dndExempted = ref(false);
 
 // Toasts and Loading states
 const toast = ref({ show: false, message: '', type: 'success' });
@@ -270,7 +254,6 @@ const showToast = (msg, type = 'success') => {
 // Modals & Forms
 const showMobileMenu = ref(false); 
 const showProfileMenu = ref(false);
-const showNotiMenu = ref(false);
 const editingUser = ref(null);
 const showMyProfileModal = ref(false);
 const showAddPostModal = ref(false);
@@ -278,22 +261,13 @@ const showAddEventModal = ref(false);
 const expandedEventId = ref(null);
 
 const myProfileForm = ref({ firstName: '', lastName: '', instrument: '' });
-const postForm = ref({ title: '', message: '', isUrgent: false });
-const eventForm = ref({ title: '', date: '', time: '', location: '' });
-
-const isEventDateInvalid = computed(() => {
-  if (!eventForm.value.date || !eventForm.value.time) return false; // Let the required fields validation handle this
-  const today = new Date();
-  const selectedDate = new Date(`${eventForm.value.date}T${eventForm.value.time}`);
-  return selectedDate < today;
-});
 
 // Data
 const chatMessages = ref([]);
 const newMessageContent = ref('');
 const unreadMessages = ref({ general: 0, important: 0, sectionals: 0 });
 const pendingUsers = ref([]);
-const pendingCount = ref(0);
+const pendingCount = computed(() => pendingUsers.value.length);
 let isInitialLoad = true; 
 const roster = ref([]);
 const allSheets = ref([]); 
@@ -532,11 +506,10 @@ const fetchPendingUsers = async () => {
     const { data, error } = await supabase.from('users').select('*').eq('status', 'pending');
     if (error) throw error;
     if (data) {
-      if (data.length > pendingCount.value && !isInitialLoad) {
+      if (data.length > pendingUsers.value.length && !isInitialLoad) {
         if (typeof playAlarmSound === 'function') playAlarmSound(); 
       }
       pendingUsers.value = data;
-      pendingCount.value = data.length;
     }
   } catch (err) {
     console.error('Failed to fetch pending users:', err);
@@ -569,15 +542,15 @@ const sendMessage = async () => {
   isSubmitting.value = false;
 };
 
-const updateMyProfile = async () => {
+const updateMyProfile = async (formData) => {
   const { error } = await supabase.from('users')
-    .update({ first_name: myProfileForm.value.firstName, last_name: myProfileForm.value.lastName, instrument: myProfileForm.value.instrument })
+    .update({ first_name: formData.firstName, last_name: formData.lastName, instrument: formData.instrument })
     .eq('id', currentUser.value.id);
 
   if (!error) {
-    currentUser.value.first_name = myProfileForm.value.firstName;
-    currentUser.value.last_name = myProfileForm.value.lastName;
-    currentUser.value.instrument = myProfileForm.value.instrument;
+    currentUser.value.first_name = formData.firstName;
+    currentUser.value.last_name = formData.lastName;
+    currentUser.value.instrument = formData.instrument;
     localStorage.setItem('smartband_user', JSON.stringify(currentUser.value));
     showMyProfileModal.value = false;
     showToast('Profile updated!');
@@ -635,6 +608,12 @@ const saveUserChanges = async () => {
   } finally {
     isSubmitting.value = false;
   }
+};
+
+// Bridge: receives updated user data from EditMemberModal then runs save
+const handleSaveUser = async (updatedUser) => {
+  editingUser.value = updatedUser;
+  await saveUserChanges();
 };
 
 const deleteUser = async (uId) => {
@@ -716,14 +695,14 @@ const declineUser = async (uId) => {
   }
 };
 
-const submitPost = async () => {
+const submitPost = async (formData) => {
   if (isSubmitting.value) return;
-  if (!postForm.value.title.trim() || !postForm.value.message.trim()) { showToast('Title and message required', 'error'); return; }
+  if (!formData.title.trim() || !formData.message.trim()) { showToast('Title and message required', 'error'); return; }
   isSubmitting.value = true;
   const { error } = await supabase.from('feed_posts').insert({
-    author_id: currentUser.value.id, title: postForm.value.title, message: postForm.value.message, is_urgent: postForm.value.isUrgent
+    author_id: currentUser.value.id, title: formData.title, message: formData.message, is_urgent: formData.isUrgent
   });
-  if(!error) { showAddPostModal.value = false; postForm.value = {title: '', message: '', isUrgent: false}; showToast('Posted!'); }
+  if (!error) { showAddPostModal.value = false; showToast('Posted!'); }
   // Realtime INSERT listener in setupRealtime() will add the post to dashboardPosts automatically
   else showToast('Failed to post', 'error');
   isSubmitting.value = false;
@@ -736,22 +715,22 @@ const deletePost = async (id) => {
   }
 };
 
-const submitEvent = async () => {
-  if (isSubmitting.value || isEventDateInvalid.value) return;
-  if (!eventForm.value.title.trim() || !eventForm.value.date || !eventForm.value.time.trim() || !eventForm.value.location.trim()) { showToast('All event fields required', 'error'); return; }
+const submitEvent = async (formData) => {
+  if (isSubmitting.value) return;
+  if (!formData.title.trim() || !formData.date || !formData.time.trim() || !formData.location.trim()) { showToast('All event fields required', 'error'); return; }
   isSubmitting.value = true;
   
   // Format the time to 12-hour AM/PM for standard display
-  const [hours, minutes] = eventForm.value.time.split(':');
+  const [hours, minutes] = formData.time.split(':');
   const parsedHour = parseInt(hours);
   const ampm = parsedHour >= 12 ? 'PM' : 'AM';
   const displayHour = parsedHour % 12 || 12;
   const formattedTimeStr = `${displayHour}:${minutes} ${ampm}`;
 
   const { error } = await supabase.from('events').insert({
-    author_id: currentUser.value.id, event_date: eventForm.value.date, title: eventForm.value.title, time_str: formattedTimeStr, location: eventForm.value.location
+    author_id: currentUser.value.id, event_date: formData.date, title: formData.title, time_str: formattedTimeStr, location: formData.location
   });
-  if(!error) { showAddEventModal.value = false; eventForm.value = {title: '', date: '', time: '', location: ''}; showToast('Event scheduled!'); }
+  if (!error) { showAddEventModal.value = false; showToast('Event scheduled!'); }
   // Realtime INSERT listener in setupRealtime() will add the event to dashboardEvents automatically
   else showToast('Failed to add event', 'error');
   isSubmitting.value = false;
@@ -820,7 +799,6 @@ const askNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     notificationPermissionStatus.value = permission;
-    console.log('Notification permission:', permission);
 
     if (permission === 'granted') {
       showNotificationPermissionModal.value = false;
@@ -930,20 +908,7 @@ END:VCALENDAR`;
     showToast('Could not download calendar file', 'error');
   }
 
-  // Method 2: Generate Google Calendar URL (optional - user can click to open)
-  try {
-    const eventTitle = encodeURIComponent(`${event.title} (${rsvpStatus === 'going' ? 'Going' : 'Not Going'})`);
-    const eventDetails = encodeURIComponent(`SmartBand Event - ${event.location || 'TBA'}`);
-    const startDateTime = dateTime.replace(/-/g, '').replace(/:/g, '');
-    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&details=${eventDetails}&location=${encodeURIComponent(event.location || '')}&dates=${startDateTime}/${startDateTime}`;
-    
-    // Store the URL for reference (could be used in a separate button)
-    window.smartbandGoogleCalendarUrl = googleCalendarUrl;
-  } catch (err) {
-    console.error('Google Calendar URL error:', err);
-  }
-
-  // Method 3: Store in localStorage as backup reminder
+  // Store in localStorage as backup reminder
   const reminders = JSON.parse(localStorage.getItem('smartband_reminders') || '[]');
   const reminder = {
     id: event.id,
@@ -955,19 +920,11 @@ END:VCALENDAR`;
     rsvpStatus: rsvpStatus,
     userId: currentUser.value.id,
     createdAt: new Date().toISOString()
-  }
-  
-
-    
-    
-    // Remove duplicate if exists
-    const filtered = reminders.filter(r => r.eventId !== event.id);
-    filtered.push(reminder);
-    localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
-    
-    showToast('Event added to your calendar reminders!', 'success');
-
   };
+  const filtered = reminders.filter(r => r.eventId !== event.id);
+  filtered.push(reminder);
+  localStorage.setItem('smartband_reminders', JSON.stringify(filtered));
+};
 
 const handleLogout = () => {
   localStorage.removeItem('smartband_user'); 
@@ -979,19 +936,6 @@ const isOnline = (lastSeen) => { if(!lastSeen) return false; return (new Date() 
 const formatMonth = (d) => new Date(d).toLocaleString('default', { month: 'short' });
 const formatDay = (d) => new Date(d).getDate();
 const formatDate = (d) => new Date(d).toLocaleDateString();
-const getTodayDateString = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-const validateEventDate = () => {
-  if (eventForm.value.date && new Date(eventForm.value.date) < new Date(getTodayDateString())) {
-    showToast('Cannot schedule events in the past', 'error');
-    eventForm.value.date = '';
-  }
-};
 const scrollToBottom = () => nextTick(() => { const b = document.getElementById('chatBox'); if(b) b.scrollTop = b.scrollHeight; });
 const toggleProfile = () => { showProfileMenu.value = !showProfileMenu.value; };
 const closeMenus = () => { showProfileMenu.value = false; showMobileMenu.value = false; };
@@ -1023,7 +967,6 @@ const triggerBrowserNotification = (title, body) => {
 const setupRealtime = () => {
   realtimeChannel = supabase.channel('smartband-sync')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-      console.log("NEW MESSAGE RECEIVED:", payload); // Debug log
       
       if (activeTab.value === 'messages' && selectedChannel.value === payload.new.channel) {
         const sender = roster.value.find(u => u.id === payload.new.sender_id) || currentUser.value;
@@ -1073,9 +1016,7 @@ const setupRealtime = () => {
       const idx = allRSVPs.value.findIndex(r => r.id === payload.new.id);
       if (idx !== -1) allRSVPs.value[idx] = payload.new;
     })
-    .subscribe((status) => {
-      console.log("Realtime status:", status); // This should say 'SUBSCRIBED'
-    });
+    .subscribe();
 };
 
 const toggleAttendeesList = (eventId) => {
@@ -1088,14 +1029,6 @@ const handleEscKey = (e) => {
   }
 };
 
-const setupNotifications = async () => {
-  if (!("Notification" in window)) return;
-  
-  // Only ask if they haven't decided yet
-  if (Notification.permission === "default") {
-    await Notification.requestPermission();
-  }
-};
 
 const uploadSheet = async (file, title, instrumentStr) => {
   if (!file) return;

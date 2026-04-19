@@ -11,10 +11,21 @@ const routes = [
   { path: '/messages/:channel?', component: MessagesTab, name: 'messages' },
   { path: '/music', component: MusicTab, name: 'music' },
   { path: '/roster', component: RosterTab, name: 'roster' },
-  { path: '/requests', component: RequestsTab, name: 'requests' },
+  { path: '/requests', component: RequestsTab, name: 'requests', meta: { adminOnly: true } },
 ]
 
 export const router = createRouter({
   history: createWebHashHistory(), // WebHashHistory avoids XAMPP Subfolder routing 404 issues
   routes
+})
+
+// Route guard: protect /requests from non-admin users
+router.beforeEach((to, from, next) => {
+  if (to.meta.adminOnly) {
+    const user = JSON.parse(localStorage.getItem('smartband_user') || 'null')
+    if (user?.role !== 'admin') {
+      return next({ name: 'dashboard' })
+    }
+  }
+  next()
 })

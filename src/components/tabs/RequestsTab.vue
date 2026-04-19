@@ -16,6 +16,7 @@
       <div>
         <h3 class="font-bold text-white text-lg md:text-xl">{{ user.first_name }} {{ user.last_name }}</h3>
         <p class="text-[11px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">{{ user.instrument }} Request</p>
+        <p class="text-[11px] text-gray-600 mt-1"><i class="fa-regular fa-envelope mr-1"></i>{{ user.email }}</p>
       </div>
     </div>
     
