@@ -291,6 +291,7 @@ const getAssignedOfficerRoles = computed(() => {
 
 const getAvailableRoles = computed(() => {
   const assigned = getAssignedOfficerRoles.value || [];
+  const isAdmin = currentUser.value?.role?.toLowerCase() === 'admin';
   const roles = [
     { value: 'admin', label: 'Admin' },
     { value: 'president', label: 'President' },
@@ -300,10 +301,17 @@ const getAvailableRoles = computed(() => {
     { value: 'member', label: 'General Member' }
   ];
 
-  return roles.map(r => ({
-    ...r,
-    disabled: assigned.includes(r.value) // Disable if someone else has this role
-  }));
+  return roles.map(r => {
+    let isDisabled = assigned.includes(r.value);
+    // Non-admins can't change any roles, so disable all options except the user's current role
+    if (!isAdmin && editingUser.value && r.value !== editingUser.value.role) {
+      isDisabled = true;
+    }
+    return {
+      ...r,
+      disabled: isDisabled // Disable if someone else has this role or if not admin
+    };
+  });
 });
 
 const userInitials = computed(() => `${currentUser.value?.first_name[0]}${currentUser.value?.last_name[0]}`.toUpperCase());
@@ -590,14 +598,9 @@ const saveUserChanges = async () => {
       showToast("Permission denied: You cannot edit an Admin.", "error");
       return;
     }
-    // 2. Officers cannot promote someone to Admin
-    if (editingUser.value.role?.toLowerCase() === 'admin') {
-      showToast("Permission denied: Only Admins can promote to Admin.", "error");
-      return;
-    }
-    // 3. Officers cannot change their own roles to escape or elevate
-    if (editingUser.value.id === currentUser.value.id && editingUser.value.role !== originalUser.role) {
-      showToast("You cannot change your own officer role.", "error");
+    // 2. Officers cannot change roles of anyone
+    if (originalUser && editingUser.value.role !== originalUser.role) {
+      showToast("Permission denied: Only Admins can change roles.", "error");
       return;
     }
   }

@@ -235,7 +235,7 @@ const handleAuth = async () => {
         instrument: instrument.value,
         role: 'member',
         status: 'pending',
-        tier: 'bronze'
+        tier: 'junior'
       }, { onConflict: 'id' });
       if (dbError) {
         console.error("DB Insert Error", dbError);

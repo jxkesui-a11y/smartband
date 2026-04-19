@@ -19,40 +19,47 @@
         </div>
 
         <div class="border-t border-white/10 mt-2 pt-4">
-          <h4 class="text-sm font-bold text-white mb-4">Change Password</h4>
-          <div class="flex flex-col gap-4">
-            <div>
-              <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Current Password</label>
-              <input v-model="passwords.current" type="password" placeholder="Leave blank to keep current" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
-            </div>
-            <div v-if="passwords.current">
-              <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">New Password</label>
-              <input v-model="passwords.new" type="password" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
-              
-              <div v-if="passwords.new" class="mt-3 p-3 bg-black border border-white/10 rounded-lg space-y-2">
-                <p class="text-[0.65rem] font-bold text-gray-400 uppercase tracking-wider mb-2">Password Requirements:</p>
-                <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasLength ? 'text-green-500' : 'text-gray-500'">
-                  <i :class="passwordReqs.hasLength ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
-                  <span>At least 8 characters</span>
-                </div>
-                <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasUppercase ? 'text-green-500' : 'text-gray-500'">
-                  <i :class="passwordReqs.hasUppercase ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
-                  <span>One uppercase letter (A-Z)</span>
-                </div>
-                <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasNumber ? 'text-green-500' : 'text-gray-500'">
-                  <i :class="passwordReqs.hasNumber ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
-                  <span>One number (0-9)</span>
-                </div>
-                <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasSpecial ? 'text-green-500' : 'text-gray-500'">
-                  <i :class="passwordReqs.hasSpecial ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
-                  <span>One special character (!@#$%^&*)</span>
+          <button v-if="!showPasswordFields" @click="showPasswordFields = true" class="w-full py-3 border border-white/10 rounded-[16px] text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-all text-white">Change Password</button>
+          
+          <div v-if="showPasswordFields">
+            <h4 class="text-sm font-bold text-white mb-4 flex justify-between items-center">
+              Change Password
+              <button @click="showPasswordFields = false; passwords = {current:'', new:'', confirm:''}" class="text-[10px] text-gray-500 hover:text-white uppercase"><i class="fa-solid fa-xmark mr-1"></i> Cancel</button>
+            </h4>
+            <div class="flex flex-col gap-4">
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Current Password</label>
+                <input v-model="passwords.current" type="password" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
+              </div>
+              <div v-if="passwords.current">
+                <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">New Password</label>
+                <input v-model="passwords.new" type="password" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
+                
+                <div v-if="passwords.new" class="mt-3 p-3 bg-black border border-white/10 rounded-lg space-y-2">
+                  <p class="text-[0.65rem] font-bold text-gray-400 uppercase tracking-wider mb-2">Password Requirements:</p>
+                  <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasLength ? 'text-green-500' : 'text-gray-500'">
+                    <i :class="passwordReqs.hasLength ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
+                    <span>At least 8 characters</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasUppercase ? 'text-green-500' : 'text-gray-500'">
+                    <i :class="passwordReqs.hasUppercase ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
+                    <span>One uppercase letter (A-Z)</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasNumber ? 'text-green-500' : 'text-gray-500'">
+                    <i :class="passwordReqs.hasNumber ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
+                    <span>One number (0-9)</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[0.7rem]" :class="passwordReqs.hasSpecial ? 'text-green-500' : 'text-gray-500'">
+                    <i :class="passwordReqs.hasSpecial ? 'fa-solid fa-check' : 'fa-solid fa-xmark'"></i>
+                    <span>One special character (!@#$%^&*)</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div v-if="passwords.current">
-              <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Confirm New Password</label>
-              <input v-model="passwords.confirm" type="password" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
-              <p v-if="passwords.confirm && passwords.new !== passwords.confirm" class="text-red-500 text-[10px] mt-1 ml-1 font-bold">Passwords do not match.</p>
+              <div v-if="passwords.current">
+                <label class="block text-[10px] font-bold uppercase text-gray-500 mb-2 ml-1">Confirm New Password</label>
+                <input v-model="passwords.confirm" type="password" class="w-full bg-black border border-white/10 rounded-2xl px-4 md:px-5 py-3 md:py-4 text-sm text-white outline-none focus:border-[#F5C518]">
+                <p v-if="passwords.confirm && passwords.new !== passwords.confirm" class="text-red-500 text-[10px] mt-1 ml-1 font-bold">Passwords do not match.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -79,9 +86,13 @@ const emit = defineEmits(['update', 'cancel']);
 
 const localForm = ref({ ...props.form });
 const passwords = ref({ current: '', new: '', confirm: '' });
+const showPasswordFields = ref(false);
 
 watch(() => props.show, (val) => {
-  if (val) passwords.value = { current: '', new: '', confirm: '' };
+  if (val) {
+    passwords.value = { current: '', new: '', confirm: '' };
+    showPasswordFields.value = false;
+  }
 });
 
 watch(() => props.form, (val) => { localForm.value = { ...val }; }, { deep: true });
