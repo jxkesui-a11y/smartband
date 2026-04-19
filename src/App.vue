@@ -1012,7 +1012,7 @@ const setupRealtime = () => {
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
       if (activeTab.value === 'roster') fetchRoster();
-      if (activeTab.value === 'requests' && currentUser.value?.role === 'admin') fetchPendingUsers();
+      if (activeTab.value === 'requests' && canManageDashboard.value) fetchPendingUsers();
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, (payload) => {
       if (activeTab.value === 'dashboard') {
@@ -1132,7 +1132,7 @@ onMounted(() => {
     fetchRoster(); 
     fetchMusicSheets();
     
-    if (currentUser.value?.role === 'admin') fetchPendingUsers();
+    if (canManageDashboard.value) fetchPendingUsers();
     
     sendHeartbeat();
     heartbeatInterval = setInterval(sendHeartbeat, 120000); 
@@ -1178,7 +1178,7 @@ watch([activeTab, selectedChannel], ([tab, channel]) => {
   if (tab === 'roster') fetchRoster();
   if (tab === 'dashboard') loadDashboard();
   if (tab === 'music') fetchMusicSheets();
-  if (tab === 'requests' && currentUser.value?.role === 'admin') fetchPendingUsers();
+  if (tab === 'requests' && canManageDashboard.value) fetchPendingUsers();
 });
 
 // ==========================================

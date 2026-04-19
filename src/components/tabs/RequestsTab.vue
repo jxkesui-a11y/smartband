@@ -22,7 +22,7 @@
     
     <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
       <button @click="declineUser(user.id)" class="bg-[#FF453A]/10 text-[#FF453A] border border-[#FF453A]/20 px-6 md:px-8 py-3 md:py-4 rounded-[22px] text-xs font-bold uppercase tracking-widest hover:bg-[#FF453A]/20 transition-colors min-h-[44px]">
-        Decline
+        Delete Request
       </button>
       <button @click="approveUser(user.id)" class="bg-[#32D74B] text-black px-8 md:px-12 py-3 md:py-4 rounded-[22px] text-xs font-bold uppercase tracking-widest hover:bg-[#28b33e] transition-colors min-h-[44px]">
         Grant Access

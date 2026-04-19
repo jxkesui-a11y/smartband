@@ -23,7 +23,8 @@ export const router = createRouter({
 router.beforeEach((to, from, next) => {
   if (to.meta.adminOnly) {
     const user = JSON.parse(localStorage.getItem('smartband_user') || 'null')
-    if (user?.role !== 'admin') {
+    const allowedRoles = ['admin', 'president', 'vp']
+    if (!user?.role || !allowedRoles.includes(user.role.toLowerCase())) {
       return next({ name: 'dashboard' })
     }
   }
